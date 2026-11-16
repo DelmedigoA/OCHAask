@@ -62,7 +62,15 @@ Search embeds the query once and fuses pgvector cosine similarity and English Po
 Set `OPENAI_CHAT_MODEL` in `.env` (for example, `openai:gpt-6-luna`) and run:
 
 ```sh
-uv run uvicorn ochask.chat:app --host 127.0.0.1 --port 8000
+uv run uvicorn ochask.web.app:app --host 127.0.0.1 --port 8000
 ```
 
-Open [http://127.0.0.1:8000](http://127.0.0.1:8000). The Pydantic AI chat searches the indexed reports and can use up to 30 chunks per search, with report and page citations. It uses only the reports currently indexed in Supabase. Chat and search make OpenAI API requests. The built-in interface is intended for local development.
+Open [http://127.0.0.1:8000](http://127.0.0.1:8000). The Pydantic AI chat searches the indexed reports and can use up to 30 chunks per search. Click a citation to open its PDF page and highlight matching evidence. It uses only the reports currently indexed in Supabase. Chat and search make OpenAI API requests. The ArchiveLens-inspired interface is intended for local development. PDFs are stored in the private Supabase `pdfs` bucket.
+
+To add another already-indexed report's local PDF to the viewer, set `SUPABASE_PDF_BUCKET` (default: `pdfs`) and run:
+
+```sh
+uv run python -c 'from pathlib import Path; from ochask.config import Settings; from ochask.storage import upload_pdf; upload_pdf(Path("data/pdfs/<report-uuid>_report.pdf"), Settings.from_environment())'
+```
+
+Uploads use a content-derived object name and verify the downloaded file before linking it to its report. The bucket remains private; the local server retrieves PDFs without exposing its secret key. The viewer opens a cited page even when its text layer cannot match the quoted passage.

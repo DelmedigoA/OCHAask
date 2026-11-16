@@ -22,6 +22,8 @@ def test_search_tool_requests_up_to_30_chunks(chat, monkeypatch):
     assert calls == [("water", 30)]
 
 
-def test_chat_health_endpoint(chat):
-    with TestClient(chat.app, base_url="http://localhost") as client:
-        assert client.get("/api/health").status_code == 200
+def test_chat_ui_endpoint(chat):
+    from ochask.web.app import app
+
+    with TestClient(app, base_url="http://localhost") as client:
+        assert client.get("/").status_code == 200

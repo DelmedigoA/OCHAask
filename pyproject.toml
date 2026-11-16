@@ -33,3 +33,6 @@ dev = [
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+"ochask.web" = ["static/*.html", "static/*.css", "static/*.js", "static/package.json", "static/vendor/pdfjs/*.mjs", "static/vendor/pdfjs/LICENSE", "static/vendor/marked/*.js", "static/vendor/marked/LICENSE"]

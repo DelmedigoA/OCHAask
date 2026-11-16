@@ -16,6 +16,7 @@ class Settings:
     supabase_url: str
     supabase_secret_key: str
     embedding_model: str
+    pdf_bucket: str = "pdfs"
 
     @classmethod
     def from_environment(cls) -> Settings:
@@ -49,4 +50,5 @@ class Settings:
             supabase_url=values["SUPABASE_URL"],
             supabase_secret_key=secret,
             embedding_model=values["OPENAI_EMBEDDING_MODEL"],
+            pdf_bucket=os.getenv("SUPABASE_PDF_BUCKET", "pdfs").strip() or "pdfs",
         )
