@@ -37,3 +37,20 @@ class ReportLanding(BaseModel):
     formats: list[str] = Field(default_factory=list)
     themes: list[str] = Field(default_factory=list)
     attachments: list[ReportAttachment] = Field(default_factory=list)
+
+
+class NormalizedChunk(BaseModel):
+    """Contextualized Docling chunk and its source provenance."""
+
+    doc_id: UUID
+    chunk_id: UUID
+    chunk_index: int = Field(ge=0)
+    from_pages: set[int]
+    text: str = Field(min_length=1)
+    n_tokens: int = Field(ge=0)
+
+
+class IndexedChunk(NormalizedChunk):
+    """A normalized chunk with its embedding ready for indexing."""
+
+    embedding: list[float] = Field(min_length=1536, max_length=1536)

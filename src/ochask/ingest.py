@@ -10,6 +10,8 @@ from uuid import UUID, NAMESPACE_URL, uuid5
 import requests
 from dotenv import load_dotenv
 
+from .models import IndexedChunk, NormalizedChunk
+
 
 def report_id_from_path(path: Path) -> UUID:
     try:
@@ -29,7 +31,7 @@ def make_converter():
         pipeline_cls=VlmPipeline, pipeline_options=VlmPipelineOptions(vlm_options=options))})
 
 
-def normalize_document(document, report_id: UUID, chunker, token_count):
+def normalize_document(document, report_id: UUID, chunker, token_count) -> list[NormalizedChunk]:
     records = []
     for index, chunk in enumerate(chunker.chunk(dl_doc=document)):
         text = chunker.contextualize(chunk).strip()
@@ -42,9 +44,9 @@ def normalize_document(document, report_id: UUID, chunker, token_count):
                 if isinstance(page, int) and page > 0:
                     pages.add(page)
         # Chunk order is part of identity, so reruns with identical output remain stable.
-        chunk_id = str(uuid5(NAMESPACE_URL, f"ochask:{report_id}:{index}:{text}"))
-        records.append({"chunk_id": chunk_id, "chunk_index": index, "content": text,
-                        "pages": sorted(pages), "token_count": token_count(text)})
+        chunk_id = uuid5(NAMESPACE_URL, f"ochask:{report_id}:{index}:{text}")
+        records.append(NormalizedChunk(doc_id=report_id, chunk_id=chunk_id, chunk_index=index,
+                                       from_pages=pages, text=text, n_tokens=token_count(text)))
     return records
 
 
@@ -93,10 +95,14 @@ def index_pdf(path, report, converter, chunker, token_count, client, url, key, m
     chunks = normalize_document(document, report_id, chunker, token_count)
     if not chunks:
         raise ValueError("Document produced no non-empty chunks; existing index was not changed")
-    vectors = embed_texts(client, [chunk["content"] for chunk in chunks], model, batch_size)
-    for chunk, vector in zip(chunks, vectors):
-        chunk["embedding"] = vector
-    rpc(url, key, "replace_report_chunks", {"report_data": report_payload(report), "chunks_data": chunks, "model_name": model})
+    vectors = embed_texts(client, [chunk.text for chunk in chunks], model, batch_size)
+    indexed = [IndexedChunk(**chunk.model_dump(), embedding=vector)
+               for chunk, vector in zip(chunks, vectors, strict=True)]
+    payload = [{"chunk_id": str(chunk.chunk_id), "chunk_index": chunk.chunk_index,
+                "content": chunk.text, "pages": sorted(chunk.from_pages),
+                "token_count": chunk.n_tokens, "embedding": chunk.embedding}
+               for chunk in indexed]
+    rpc(url, key, "replace_report_chunks", {"report_data": report_payload(report), "chunks_data": payload, "model_name": model})
     return len(chunks)
 
 

@@ -4,7 +4,7 @@ from uuid import UUID
 
 import pytest
 
-from ochask import ingest
+from ochask import IndexedChunk, NormalizedChunk, ingest
 from ochask.search import search
 
 REPORT_ID = UUID("e5e91d1e-55a1-531f-8f31-456f21958cd7")
@@ -30,11 +30,17 @@ def test_normalization_pages_and_stable_ids():
     chunks = [Chunk("heading\ntext", [{"prov": [{"page_no": 2}, {"page_no": 1}]}, {"prov": [{"page_no": 2}]}]),
               Chunk("no provenance", [{}])]
     result = ingest.normalize_document(chunks, REPORT_ID, Chunker(), len)
-    assert result[0]["pages"] == [1, 2]
-    assert result[1]["pages"] == []
-    assert result[0]["token_count"] == len("heading\ntext")
+    assert result[0].from_pages == {1, 2}
+    assert result[1].from_pages == set()
+    assert result[0].n_tokens == len("heading\ntext")
     assert result == ingest.normalize_document(chunks, REPORT_ID, Chunker(), len)
-    assert result[0]["chunk_id"] != result[1]["chunk_id"]
+    assert result[0].chunk_id != result[1].chunk_id
+    assert isinstance(result[0], NormalizedChunk)
+    assert result[0].doc_id == REPORT_ID
+    indexed = IndexedChunk(**result[0].model_dump(), embedding=[0.1] * 1536)
+    assert indexed.text == result[0].text
+    with pytest.raises(ValueError):
+        IndexedChunk(**result[0].model_dump(), embedding=[0.1])
 
 
 def test_filename_validation():
