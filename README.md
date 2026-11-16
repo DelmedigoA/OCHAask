@@ -56,3 +56,13 @@ for hit in results:
 ```
 
 Search embeds the query once and fuses pgvector cosine similarity and English PostgreSQL full-text rankings using weighted reciprocal rank fusion (k=60). Each candidate list contains up to ten times the requested result count. Weights are non-negative and at least one must be positive; the default weights are equal. Search requires the same server-side credentials and returns source chunks, not generated answers. Existing rows without new chunk IDs are excluded until their reports are reindexed.
+
+## Chat with indexed reports
+
+Set `OPENAI_CHAT_MODEL` in `.env` (for example, `openai:gpt-4.1-mini`) and run:
+
+```sh
+uv run uvicorn ochask.chat:app --host 127.0.0.1 --port 8000
+```
+
+Open [http://127.0.0.1:8000](http://127.0.0.1:8000). The Pydantic AI chat searches the indexed reports and can use up to 30 chunks per search, with report and page citations. It uses only the reports currently indexed in Supabase. Chat and search make OpenAI API requests. The built-in interface is intended for local development.
