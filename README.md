@@ -31,46 +31,28 @@ report = get_landing_page("https://reliefweb.int/report/...")
 print(report.model_dump(mode="json"))
 ```
 
-## Chunk PDFs and extract images
+## Index PDFs with Docling
 
-The OCHA chunker uses PyMuPDF to produce one JSON document per PDF, organized as pages containing ordered text and image chunks. It can process individual files or all PDFs directly inside a directory:
+The indexing pipeline uses Granite Docling with the MLX VLM engine and contextualized Docling HybridChunker chunks (target: 450 tokens). It requires Apple Silicon, sufficient memory for the model, and the model download on first use. It replaces the previous PyMuPDF chunking workflow; downloading PDFs still uses PyMuPDF for language detection.
+
+Set `OPENAI_API_KEY`, `SUPABASE_URL`, and the server-only `SUPABASE_SERVICE_ROLE_KEY` in the environment or an ignored `.env` file. Never expose the service role key to a browser. Apply the Supabase migrations to the intended database before indexing. With scraped metadata and downloaded PDFs in their default locations, run:
 
 ```sh
-uv run python -m ochask.chunker data/pdfs --output-dir data/chunked
-uv run python -m ochask.chunker path/to/report.pdf --output-dir data/chunked --max-chars 1800 --image-scale 2
+uv run python -m ochask.ingest data/pdfs --batch-size 64
+# Or index a single PDF:
+uv run python -m ochask.ingest data/pdfs/<report-uuid>_report.pdf --reports data/scraped/landing_pages.jsonl
 ```
 
-The command writes JSON files and an `images/` directory under the output directory. It continues after individual failures and exits with a nonzero status if any inputs fail. Names include a hash of the input's absolute path to avoid collisions; moving a PDF changes its output name. Image paths in JSON are relative to the output directory. Image files are PNG crops rendered from each image placement on the page, so they reflect the page's appearance, including any overlapping content. The same embedded image used multiple times is recorded for each placement.
+PDF filenames must begin with the report UUID followed by `_`, and matching metadata must be present in the JSONL. The command batches OpenAI `text-embedding-3-small` requests and commits each report atomically. Rerunning a report replaces its previous chunks for that model only after conversion and embedding succeed. Failed documents are reported and the command exits nonzero. Embedding requests incur API costs. Chunks retain all known one-based source page numbers; an empty page list means Docling supplied no provenance.
 
-From Python:
+## Hybrid search
 
 ```python
-from ochask.chunker import chunk_pdf
+from ochask.search import search
 
-report = chunk_pdf("path/to/report.pdf", "data/chunked")
-for page in report["pages"]:
-    for chunk in page["chunks"]:
-        print(page["page_number"], chunk["type"], chunk.get("text", chunk.get("image_path")))
+results = search("178 UN", limit=10, semantic_weight=1.0, keyword_weight=1.0)
+for hit in results:
+    print(hit["title"], hit["landing_url"], hit["pages"], hit["content"], hit["fusion_score"])
 ```
 
-Each page has a one-based `page_number`, dimensions in PDF points, `text_characters`, `unusable_text_characters`, `skipped_small_images`, `low_extractable_text`, and `chunks`. Each chunk has a page-local ID, `type`, bounding box in PDF points, and detected `section`. Text chunks have `text` and a `role` (`heading`, `text`, `caption`, or `running_header`). Image chunks have `image_path`, and may link to a nearby caption with `caption_chunk_id`. Split text chunks share their original block's bounding box. Headings and captions are heuristic, and `section` carries the most recently detected heading across pages.
-
-### Observed report patterns and limitations
-
-Many flash and situation updates are web exports with a large title, section headings, indented paragraphs or bullets, a first-page photo, and sometimes a printed browser header. Response updates also use sector headings and short labels such as Response and Challenges. Font size, short known labels, and position guide the chunker; browser-style headers are marked rather than discarded. Consecutive line blocks are joined conservatively, while longer blocks are split at whitespace.
-
-These PDFs are not uniform: multi-column pages, tables, infographics, vector maps, and images with overlays can produce imperfect reading order or heading detection. Raster placements smaller than 40 PDF points in either displayed dimension are skipped by default to avoid extracting individual letter images and other tiny graphics. Use `--min-image-size 0` (or `min_image_size=0` in Python) to retain all placements, or set a different threshold. This size heuristic can also omit meaningful small graphics, and larger logos or decorative images may remain. Each page reports `skipped_small_images`. Vector graphics are not separately detected. A page with no text or retained raster images gets a full-page rendering, which may also be blank. Pages are flagged for review when they have fewer than 50 extracted characters excluding control and replacement characters, or when at least three such characters make up 5% or more of extracted text. The flag does not by itself identify a scan and does not catch every kind of garbled text. Existing JSON files must be regenerated to apply this check. **No OCR is performed**, and text inside images is not extracted. The chunker preserves PyMuPDF's text as extracted, including any garbled characters.
-
-## Prepare chunks for embeddings
-
-After extracting PDFs, create a separate set of compact documents and copy their image assets with:
-
-```sh
-uv run python -m ochask.embedding_chunks data/chunked --output-dir data/embedding_chunks
-```
-
-This leaves `data/chunked` intact. Each output document has a `document_id`, `source_file`, and `pages`. Every chunk includes a document-qualified `id`, one-based `page_number`, `type`, `bbox`, `text`, and `embedding_ready`; image chunks also have an `image_path` relative to the output directory. IDs derive from the input JSON filename and original chunk ID, so rerunning this step on the same extraction produces the same IDs. Re-extracting a changed PDF or moving it before extraction can change IDs.
-
-Detected headings are added to text chunks as context. When headings and their following text are on different pages, the text remains on its own page and `heading_pages` identifies where the attached headings occurred. Context detected as a section also carries forward to later text. Detected captions are combined with the corresponding image, and printed browser headers are omitted. An unattached heading is retained as a text chunk. These are layout heuristics and may associate captions or headings incorrectly on complex pages.
-
-Only use a chunk's `text` for a text embedding when `embedding_ready` is true. Images with captions can be embedded using their caption text; captionless images have `text: null` and need a multimodal embedding model or a separately generated description. Text containing many control or replacement characters is retained for review with `embedding_ready: false`; this step does not repair it or perform OCR. A page can contain both eligible and ineligible chunks. The output contains no vectors and makes no embedding API calls.
+Search embeds the query once and fuses pgvector cosine similarity and English PostgreSQL full-text rankings using weighted reciprocal rank fusion (k=60). Each candidate list contains up to ten times the requested result count. Weights are non-negative and at least one must be positive; the default weights are equal. Search requires the same server-side credentials and returns source chunks, not generated answers. Existing rows without new chunk IDs are excluded until their reports are reindexed.

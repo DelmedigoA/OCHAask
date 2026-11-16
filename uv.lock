@@ -1932,6 +1932,7 @@ dependencies = [
     { name = "pip" },
     { name = "pydantic" },
     { name = "pymupdf" },
+    { name = "python-dotenv" },
     { name = "requests" },
     { name = "tiktoken" },
 ]
@@ -1954,6 +1955,7 @@ requires-dist = [
     { name = "pip", specifier = ">=26.3" },
     { name = "pydantic", specifier = ">=2.14.3" },
     { name = "pymupdf", specifier = ">=2.1" },
+    { name = "python-dotenv", specifier = ">=1.2.4" },
     { name = "requests", specifier = ">=2.34.2" },
     { name = "tiktoken", specifier = ">=0.14.0" },
 ]

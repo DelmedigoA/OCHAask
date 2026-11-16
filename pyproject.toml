@@ -18,6 +18,7 @@ dependencies = [
     "openpyxl>=3.1.5",
     "pip>=26.3",
     "pydantic>=2.14.3",
+    "python-dotenv>=1.2.4",
     "pymupdf>=2.1",
     "requests>=2.34.2",
     "tiktoken>=0.14.0",
