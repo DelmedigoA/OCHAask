@@ -8,28 +8,25 @@ import sys
 from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
-from uuid import NAMESPACE_URL, UUID, uuid5
+from uuid import UUID
 
 from .config import Settings
 from .database import rpc
 from .embeddings import embed_texts
 from .models import IndexedChunk, NormalizedChunk
+from .utils import (
+    chunk_payload,
+    chunk_source_pages,
+    report_id_from_path,
+    report_payload,
+    stable_chunk_id,
+)
 
 if TYPE_CHECKING:
     from docling.chunking import HybridChunker
     from docling.document_converter import DocumentConverter
     from docling_core.types.doc import DoclingDocument
     from openai import OpenAI
-
-
-def report_id_from_path(path: Path) -> UUID:
-    """Extract the report ID from the downloader’s UUID-prefixed filename."""
-    try:
-        return UUID(path.name.split("_", 1)[0])
-    except ValueError as exc:
-        raise ValueError(
-            f"PDF filename must start with a report UUID: {path.name}"
-        ) from exc
 
 
 def make_converter() -> DocumentConverter:
@@ -65,14 +62,8 @@ def normalize_document(
         text = chunker.contextualize(chunk).strip()
         if not text:
             continue
-        pages: set[int] = set()
-        for item in chunk.model_dump().get("meta", {}).get("doc_items", []):
-            for provenance in item.get("prov", []):
-                page = provenance.get("page_no")
-                if isinstance(page, int) and page > 0:
-                    pages.add(page)
-        # Chunk order is part of identity, so reruns with identical output remain stable.
-        chunk_id = uuid5(NAMESPACE_URL, f"ochask:{report_id}:{index}:{text}")
+        pages = chunk_source_pages(chunk.model_dump())
+        chunk_id = stable_chunk_id(report_id, index, text)
         records.append(
             NormalizedChunk(
                 doc_id=report_id,
@@ -84,33 +75,6 @@ def normalize_document(
             )
         )
     return records
-
-
-def report_payload(report: dict[str, Any]) -> dict[str, Any]:
-    """Map scraped landing metadata to the database report fields."""
-    image = report.get("main_image") or {}
-    return {
-        "id": report["id"],
-        "landing_url": report["landing_url"],
-        "title": report["title"],
-        "report_type": report.get("report_type"),
-        "posted": report.get("posted"),
-        "originally_published": report.get("originally_published"),
-        "origin_url": report.get("origin_url"),
-        "main_image_url": image.get("url"),
-        "main_image_credit": image.get("credit"),
-        "key_points": report.get("key_points") or [],
-        "metadata": {
-            key: report.get(key)
-            for key in (
-                "primary_country",
-                "other_countries",
-                "sources",
-                "formats",
-                "themes",
-            )
-        },
-    }
 
 
 def index_pdf(
@@ -140,17 +104,7 @@ def index_pdf(
         IndexedChunk(**chunk.model_dump(), embedding=vector)
         for chunk, vector in zip(chunks, vectors, strict=True)
     ]
-    payload = [
-        {
-            "chunk_id": str(chunk.chunk_id),
-            "chunk_index": chunk.chunk_index,
-            "content": chunk.text,
-            "pages": sorted(chunk.from_pages),
-            "token_count": chunk.n_tokens,
-            "embedding": chunk.embedding,
-        }
-        for chunk in indexed
-    ]
+    payload = [chunk_payload(chunk) for chunk in indexed]
     rpc(
         url,
         key,
