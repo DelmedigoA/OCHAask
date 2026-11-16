@@ -5,6 +5,9 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, HttpUrl
 
+# The Supabase vector column is fixed at this dimension.
+EMBEDDING_DIMENSIONS = 1536
+
 
 class MainImage(BaseModel):
     url: HttpUrl
@@ -53,4 +56,6 @@ class NormalizedChunk(BaseModel):
 class IndexedChunk(NormalizedChunk):
     """A normalized chunk with its embedding ready for indexing."""
 
-    embedding: list[float] = Field(min_length=1536, max_length=1536)
+    embedding: list[float] = Field(
+        min_length=EMBEDDING_DIMENSIONS, max_length=EMBEDDING_DIMENSIONS
+    )

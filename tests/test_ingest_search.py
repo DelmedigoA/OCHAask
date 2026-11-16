@@ -27,8 +27,13 @@ class Chunker:
 
 
 def test_normalization_pages_and_stable_ids():
-    chunks = [Chunk("heading\ntext", [{"prov": [{"page_no": 2}, {"page_no": 1}]}, {"prov": [{"page_no": 2}]}]),
-              Chunk("no provenance", [{}])]
+    chunks = [
+        Chunk(
+            "heading\ntext",
+            [{"prov": [{"page_no": 2}, {"page_no": 1}]}, {"prov": [{"page_no": 2}]}],
+        ),
+        Chunk("no provenance", [{}]),
+    ]
     result = ingest.normalize_document(chunks, REPORT_ID, Chunker(), len)
     assert result[0].from_pages == {1, 2}
     assert result[1].from_pages == set()
@@ -51,10 +56,16 @@ def test_filename_validation():
 
 def test_embedding_batches_and_response_order():
     calls = []
+
     def create(**kwargs):
         calls.append(kwargs)
-        return SimpleNamespace(data=[SimpleNamespace(index=i, embedding=[float(i)] * 1536)
-                                     for i in reversed(range(len(kwargs["input"])))])
+        return SimpleNamespace(
+            data=[
+                SimpleNamespace(index=i, embedding=[float(i)] * 1536)
+                for i in reversed(range(len(kwargs["input"])))
+            ]
+        )
+
     client = SimpleNamespace(embeddings=SimpleNamespace(create=create))
     vectors = ingest.embed_texts(client, ["a", "b", "c"], "test-model", 2)
     assert [v[0] for v in vectors] == [0, 1, 0]
@@ -65,29 +76,80 @@ def test_embedding_batches_and_response_order():
 
 
 def test_failed_embeddings_do_not_replace(monkeypatch):
-    converter = SimpleNamespace(convert=lambda _: SimpleNamespace(document=[Chunk("text", [])]))
+    converter = SimpleNamespace(
+        convert=lambda _: SimpleNamespace(document=[Chunk("text", [])])
+    )
+
     def fail(**kwargs):
         raise RuntimeError("API failure")
+
     client = SimpleNamespace(embeddings=SimpleNamespace(create=fail))
     monkeypatch.setattr(ingest, "rpc", lambda *a, **k: pytest.fail("must not write"))
     with pytest.raises(RuntimeError):
-        ingest.index_pdf(Path(f"{REPORT_ID}_report.pdf"), {"id": str(REPORT_ID)}, converter, Chunker(), len, client, "url", "key", "test-model")
+        ingest.index_pdf(
+            Path(f"{REPORT_ID}_report.pdf"),
+            {"id": str(REPORT_ID)},
+            converter,
+            Chunker(),
+            len,
+            client,
+            "url",
+            "key",
+            "test-model",
+        )
 
 
 def test_index_and_search_smoke(monkeypatch):
     import ochask.search as search_module
-    converter = SimpleNamespace(convert=lambda _: SimpleNamespace(document=[Chunk("some text", [{"prov": [{"page_no": 3}]}])]))
-    client = SimpleNamespace(embeddings=SimpleNamespace(create=lambda **kwargs: SimpleNamespace(
-        data=[SimpleNamespace(index=i, embedding=[0.1] * 1536) for i in range(len(kwargs["input"]))])))
+
+    converter = SimpleNamespace(
+        convert=lambda _: SimpleNamespace(
+            document=[Chunk("some text", [{"prov": [{"page_no": 3}]}])]
+        )
+    )
+    client = SimpleNamespace(
+        embeddings=SimpleNamespace(
+            create=lambda **kwargs: SimpleNamespace(
+                data=[
+                    SimpleNamespace(index=i, embedding=[0.1] * 1536)
+                    for i in range(len(kwargs["input"]))
+                ]
+            )
+        )
+    )
     calls = []
+
     def fake_rpc(url, key, name, payload):
         calls.append((name, payload))
         return [{"pages": [3], "content": "some text", "fusion_score": 2 / 61}]
+
     monkeypatch.setattr(ingest, "rpc", fake_rpc)
-    report = {"id": str(REPORT_ID), "landing_url": "https://example.com", "title": "Report"}
-    assert ingest.index_pdf(Path(f"{REPORT_ID}_report.pdf"), report, converter, Chunker(), len, client, "url", "key", "test-model") == 1
+    report = {
+        "id": str(REPORT_ID),
+        "landing_url": "https://example.com",
+        "title": "Report",
+    }
+    assert (
+        ingest.index_pdf(
+            Path(f"{REPORT_ID}_report.pdf"),
+            report,
+            converter,
+            Chunker(),
+            len,
+            client,
+            "url",
+            "key",
+            "test-model",
+        )
+        == 1
+    )
     assert calls[0][1]["chunks_data"][0]["pages"] == [3]
-    for name in ("OPENAI_API_KEY", "OPENAI_EMBEDDING_MODEL", "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"):
+    for name in (
+        "OPENAI_API_KEY",
+        "OPENAI_EMBEDDING_MODEL",
+        "SUPABASE_URL",
+        "SUPABASE_SERVICE_ROLE_KEY",
+    ):
         monkeypatch.setenv(name, "test")
     monkeypatch.setattr(search_module, "OpenAI", lambda: client)
     monkeypatch.setattr(search_module, "rpc", fake_rpc)
@@ -99,3 +161,18 @@ def test_index_and_search_smoke(monkeypatch):
         search(" ")
     with pytest.raises(ValueError):
         search("text", semantic_weight=0, keyword_weight=0)
+
+
+def test_settings_validate_missing_configuration(monkeypatch):
+    from ochask import config
+
+    monkeypatch.setattr(config, "load_dotenv", lambda: None)
+    for name in (
+        "OPENAI_API_KEY",
+        "OPENAI_EMBEDDING_MODEL",
+        "SUPABASE_URL",
+        "SUPABASE_SERVICE_ROLE_KEY",
+    ):
+        monkeypatch.delenv(name, raising=False)
+    with pytest.raises(ValueError, match="OPENAI_EMBEDDING_MODEL"):
+        config.Settings.from_environment()
