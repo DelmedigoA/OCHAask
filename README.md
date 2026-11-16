@@ -59,7 +59,7 @@ Search embeds the query once and fuses pgvector cosine similarity and English Po
 
 ## Chat with indexed reports
 
-Set `OPENAI_CHAT_MODEL` in `.env` (for example, `openai:gpt-4.1-mini`) and run:
+Set `OPENAI_CHAT_MODEL` in `.env` (for example, `openai:gpt-6-luna`) and run:
 
 ```sh
 uv run uvicorn ochask.chat:app --host 127.0.0.1 --port 8000
