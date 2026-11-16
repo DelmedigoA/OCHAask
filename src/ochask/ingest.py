@@ -10,8 +10,6 @@ from uuid import UUID, NAMESPACE_URL, uuid5
 import requests
 from dotenv import load_dotenv
 
-MODEL = "text-embedding-3-small"
-
 
 def report_id_from_path(path: Path) -> UUID:
     try:
@@ -50,13 +48,13 @@ def normalize_document(document, report_id: UUID, chunker, token_count):
     return records
 
 
-def embed_texts(client, texts, batch_size=64):
+def embed_texts(client, texts, model, batch_size=64):
     if batch_size < 1:
         raise ValueError("batch_size must be positive")
     vectors = []
     for start in range(0, len(texts), batch_size):
         batch = texts[start:start + batch_size]
-        response = client.embeddings.create(model=MODEL, input=batch)
+        response = client.embeddings.create(model=model, input=batch)
         ordered = sorted(response.data, key=lambda item: item.index)
         if [item.index for item in ordered] != list(range(len(batch))):
             raise ValueError("Embedding response did not contain exactly one vector per input")
@@ -87,7 +85,7 @@ def rpc(url, key, function, payload, session=requests):
     return response.json() if response.content else None
 
 
-def index_pdf(path, report, converter, chunker, token_count, client, url, key, batch_size=64):
+def index_pdf(path, report, converter, chunker, token_count, client, url, key, model, batch_size=64):
     report_id = report_id_from_path(path)
     if str(report_id) != str(report["id"]):
         raise ValueError("PDF and report IDs do not match")
@@ -95,10 +93,10 @@ def index_pdf(path, report, converter, chunker, token_count, client, url, key, b
     chunks = normalize_document(document, report_id, chunker, token_count)
     if not chunks:
         raise ValueError("Document produced no non-empty chunks; existing index was not changed")
-    vectors = embed_texts(client, [chunk["content"] for chunk in chunks], batch_size)
+    vectors = embed_texts(client, [chunk["content"] for chunk in chunks], model, batch_size)
     for chunk, vector in zip(chunks, vectors):
         chunk["embedding"] = vector
-    rpc(url, key, "replace_report_chunks", {"report_data": report_payload(report), "chunks_data": chunks})
+    rpc(url, key, "replace_report_chunks", {"report_data": report_payload(report), "chunks_data": chunks, "model_name": model})
     return len(chunks)
 
 
@@ -115,8 +113,9 @@ def main(argv=None):
     args = parser.parse_args(argv)
     load_dotenv()
     url, key = os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-    if not url or not key or not os.getenv("OPENAI_API_KEY"):
-        parser.error("OPENAI_API_KEY, SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required")
+    model = os.getenv("OPENAI_EMBEDDING_MODEL", "").strip()
+    if not url or not key or not os.getenv("OPENAI_API_KEY") or not model:
+        parser.error("OPENAI_API_KEY, OPENAI_EMBEDDING_MODEL, SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required")
     if args.batch_size < 1:
         parser.error("--batch-size must be positive")
     reports = {}
@@ -143,7 +142,7 @@ def main(argv=None):
         try:
             report = reports[str(report_id)]
             count = index_pdf(path, report, converter, chunker, lambda text: len(encoding.encode(text)),
-                              client, url, key, args.batch_size)
+                              client, url, key, model, args.batch_size)
             print(f"{path.name}: indexed {count} chunks")
         except Exception as exc:
             failures += 1

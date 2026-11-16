@@ -19,9 +19,10 @@ def search(query: str, *, limit: int = 10, semantic_weight: float = 1.0,
         raise ValueError("weights must be finite, non-negative, and not both zero")
     load_dotenv()
     url, key = os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-    if not url or not key or not os.getenv("OPENAI_API_KEY"):
-        raise ValueError("OPENAI_API_KEY, SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required")
-    vector = embed_texts(OpenAI(), [query.strip()])[0]
+    model = os.getenv("OPENAI_EMBEDDING_MODEL", "").strip()
+    if not url or not key or not os.getenv("OPENAI_API_KEY") or not model:
+        raise ValueError("OPENAI_API_KEY, OPENAI_EMBEDDING_MODEL, SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required")
+    vector = embed_texts(OpenAI(), [query.strip()], model)[0]
     return rpc(url, key, "hybrid_search_report_chunks", {
-        "query_text": query.strip(), "query_embedding": vector, "match_count": limit,
+        "query_text": query.strip(), "query_embedding": vector, "model_name": model, "match_count": limit,
         "semantic_weight": semantic_weight, "keyword_weight": keyword_weight})

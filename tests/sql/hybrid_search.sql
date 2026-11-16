@@ -16,30 +16,33 @@ begin
     chunks := jsonb_build_array(
         jsonb_build_object('chunk_id', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'chunk_index', 0, 'content', 'water supply', 'pages', jsonb_build_array(1, 2), 'token_count', 2, 'embedding', vector_a),
         jsonb_build_object('chunk_id', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'chunk_index', 1, 'content', 'food supplies', 'pages', jsonb_build_array(3), 'token_count', 2, 'embedding', vector_b));
-    perform public.replace_report_chunks(report, chunks);
-    perform public.replace_report_chunks(report, chunks);
+    perform public.replace_report_chunks(report, chunks, 'test-model');
+    perform public.replace_report_chunks(report, chunks, 'test-model');
     select count(*) into found_count from public.report_embeddings where report_id = rid;
     assert found_count = 2, 'rerun must not duplicate chunks';
-    select count(*) into found_count from public.hybrid_search_report_chunks('water', query_vector, 10, 1, 1);
+    select count(*) into found_count from public.hybrid_search_report_chunks('water', query_vector, 'test-model', 10, 1, 1);
     assert found_count = 2, 'semantic-only and overlapping results must be returned';
-    select chunk_id, fusion_score into first_id, first_score from public.hybrid_search_report_chunks('water', query_vector, 1, 1, 1);
+    select chunk_id, fusion_score into first_id, first_score from public.hybrid_search_report_chunks('water', query_vector, 'test-model', 1, 1, 1);
     assert first_id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'::uuid and abs(first_score - 2.0/61.0) < 0.0000001, 'RRF overlap incorrect';
-    select count(*) into found_count from public.hybrid_search_report_chunks('absentword', query_vector, 10, 0, 1);
+    select count(*) into found_count from public.hybrid_search_report_chunks('absentword', query_vector, 'test-model', 10, 0, 1);
     assert found_count = 0, 'empty keyword ranking';
-    select chunk_id into first_id from public.hybrid_search_report_chunks('food', query_vector, 1, 0, 2);
+    select chunk_id into first_id from public.hybrid_search_report_chunks('food', query_vector, 'test-model', 1, 0, 2);
     assert first_id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'::uuid, 'keyword-only weighting';
     begin
-        perform public.replace_report_chunks(report, jsonb_build_array(jsonb_build_object('chunk_id', 'invalid')));
+        perform public.replace_report_chunks(report, jsonb_build_array(jsonb_build_object('chunk_id', 'invalid')), 'test-model');
         raise exception 'invalid replacement unexpectedly succeeded';
     exception when invalid_text_representation then null;
     end;
     select count(*) into found_count from public.report_embeddings where report_id = rid;
     assert found_count = 2, 'failed replacement must roll back';
-    perform public.replace_report_chunks(report, chunks - 1);
-    select count(*) into found_count from public.report_embeddings where report_id = rid;
+    perform public.replace_report_chunks(report, chunks, 'other-model');
+    select count(*) into found_count from public.hybrid_search_report_chunks('water', query_vector, 'test-model', 10, 1, 1);
+    assert found_count = 2, 'search must only use the selected model';
+    perform public.replace_report_chunks(report, chunks - 1, 'test-model');
+    select count(*) into found_count from public.report_embeddings where report_id = rid and embedding_model = 'test-model';
     assert found_count = 1, 'replacement must remove stale chunks';
-    assert not has_function_privilege('anon', 'public.hybrid_search_report_chunks(text, extensions.vector, integer, double precision, double precision)', 'execute'), 'anon must not execute';
-    assert has_function_privilege('service_role', 'public.hybrid_search_report_chunks(text, extensions.vector, integer, double precision, double precision)', 'execute'), 'service role must execute';
+    assert not has_function_privilege('anon', 'public.hybrid_search_report_chunks(text, extensions.vector, text, integer, double precision, double precision)', 'execute'), 'anon must not execute';
+    assert has_function_privilege('service_role', 'public.hybrid_search_report_chunks(text, extensions.vector, text, integer, double precision, double precision)', 'execute'), 'service role must execute';
 end;
 $$;
 rollback;

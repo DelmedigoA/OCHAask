@@ -50,12 +50,12 @@ def test_embedding_batches_and_response_order():
         return SimpleNamespace(data=[SimpleNamespace(index=i, embedding=[float(i)] * 1536)
                                      for i in reversed(range(len(kwargs["input"])))])
     client = SimpleNamespace(embeddings=SimpleNamespace(create=create))
-    vectors = ingest.embed_texts(client, ["a", "b", "c"], 2)
+    vectors = ingest.embed_texts(client, ["a", "b", "c"], "test-model", 2)
     assert [v[0] for v in vectors] == [0, 1, 0]
     assert [c["input"] for c in calls] == [["a", "b"], ["c"]]
-    assert ingest.embed_texts(client, [], 2) == []
+    assert ingest.embed_texts(client, [], "test-model", 2) == []
     with pytest.raises(ValueError):
-        ingest.embed_texts(client, ["a"], 0)
+        ingest.embed_texts(client, ["a"], "test-model", 0)
 
 
 def test_failed_embeddings_do_not_replace(monkeypatch):
@@ -65,7 +65,7 @@ def test_failed_embeddings_do_not_replace(monkeypatch):
     client = SimpleNamespace(embeddings=SimpleNamespace(create=fail))
     monkeypatch.setattr(ingest, "rpc", lambda *a, **k: pytest.fail("must not write"))
     with pytest.raises(RuntimeError):
-        ingest.index_pdf(Path(f"{REPORT_ID}_report.pdf"), {"id": str(REPORT_ID)}, converter, Chunker(), len, client, "url", "key")
+        ingest.index_pdf(Path(f"{REPORT_ID}_report.pdf"), {"id": str(REPORT_ID)}, converter, Chunker(), len, client, "url", "key", "test-model")
 
 
 def test_index_and_search_smoke(monkeypatch):
@@ -79,14 +79,16 @@ def test_index_and_search_smoke(monkeypatch):
         return [{"pages": [3], "content": "some text", "fusion_score": 2 / 61}]
     monkeypatch.setattr(ingest, "rpc", fake_rpc)
     report = {"id": str(REPORT_ID), "landing_url": "https://example.com", "title": "Report"}
-    assert ingest.index_pdf(Path(f"{REPORT_ID}_report.pdf"), report, converter, Chunker(), len, client, "url", "key") == 1
+    assert ingest.index_pdf(Path(f"{REPORT_ID}_report.pdf"), report, converter, Chunker(), len, client, "url", "key", "test-model") == 1
     assert calls[0][1]["chunks_data"][0]["pages"] == [3]
-    for name in ("OPENAI_API_KEY", "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"):
+    for name in ("OPENAI_API_KEY", "OPENAI_EMBEDDING_MODEL", "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"):
         monkeypatch.setenv(name, "test")
     monkeypatch.setattr(search_module, "OpenAI", lambda: client)
     monkeypatch.setattr(search_module, "rpc", fake_rpc)
     assert search("some text", semantic_weight=2)[0]["pages"] == [3]
     assert calls[1][1]["semantic_weight"] == 2
+    assert calls[1][1]["model_name"] == "test"
+    assert calls[0][1]["model_name"] == "test-model"
     with pytest.raises(ValueError):
         search(" ")
     with pytest.raises(ValueError):
