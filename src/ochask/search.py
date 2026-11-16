@@ -44,7 +44,7 @@ def search(
     vector = embed_texts(OpenAI(), [query.strip()], settings.embedding_model)[0]
     return rpc(
         settings.supabase_url,
-        settings.supabase_service_role_key,
+        settings.supabase_secret_key,
         "hybrid_search_report_chunks",
         {
             "query_text": query.strip(),

@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OCHAsk · OCHA reports</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@300;400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <main class="app-shell" id="app-shell">
+      <div class="workspace" id="workspace">
+        <section class="chat-workspace" aria-label="OCHAsk chat workspace">
+          <header class="bw-header">
+            <a href="https://bearing-witness.com/" target="_blank" rel="noopener noreferrer" aria-label="Bearing Witness home">
+              <img src="https://bearing-witness.com/wp-content/themes/neve-bearing-witness/assets/img/bw-logo.png" alt="Bearing Witness" />
+            </a>
+            <a class="bw-back" href="https://bearing-witness.com/" target="_blank" rel="noopener noreferrer">Back to the project ↗</a>
+          </header>
+
+          <section class="intro" aria-labelledby="page-title">
+            <div class="kicker">OCHA REPORTS / EVIDENCE</div>
+            <h1 id="page-title">OCHAsk</h1>
+          </section>
+
+          <section class="chat-panel" aria-label="OCHAsk chat">
+            <header class="chat-header">
+              <div>
+                <h2>Conversation</h2>
+                <p>Searches and cites indexed OCHA reports.</p>
+              </div>
+              <div class="chat-header__actions">
+                <span class="status-pill" id="status">Ready</span>
+                <button class="reset-button" id="reset-conversation" type="button">Reset</button>
+              </div>
+            </header>
+            <div class="messages" id="messages"></div>
+            <form class="composer" id="composer">
+              <textarea id="question" rows="2" placeholder="Ask a question about the reports…" required></textarea>
+              <button type="submit">Ask</button>
+            </form>
+          </section>
+
+          <p class="note">
+            Based on the indexed OCHA reports. AI-generated answers may contain errors; check the cited pages.
+          </p>
+        </section>
+
+        <div class="workspace-divider" id="workspace-divider" role="separator" aria-label="Resize chat and document panes" aria-orientation="vertical" tabindex="0"></div>
+
+        <aside class="document-pane" id="document-pane" aria-label="Report PDF" aria-hidden="true">
+          <header class="document-pane__header">
+            <div>
+              <h2 id="document-title">Report</h2>
+              <p id="document-version"></p>
+            </div>
+            <button class="document-pane__close" id="document-close" type="button" aria-label="Close document viewer">×</button>
+          </header>
+          <div class="document-toolbar" aria-label="PDF controls">
+            <button id="document-previous" type="button" aria-label="Previous page">‹</button>
+            <label>Page <input id="document-page" type="number" min="1" inputmode="numeric" aria-label="PDF page number" /> <span id="document-page-count">of —</span></label>
+            <button id="document-next" type="button" aria-label="Next page">›</button>
+            <span class="document-toolbar__spacer"></span>
+            <button id="document-zoom-out" type="button" aria-label="Zoom out">−</button>
+            <button id="document-zoom-in" type="button" aria-label="Zoom in">+</button>
+          </div>
+          <p class="document-status" id="document-status" aria-live="polite">Choose a citation to open the report.</p>
+          <div class="document-canvas-wrap" id="document-canvas-wrap">
+            <div class="document-page-layer" id="document-page-layer">
+              <canvas id="document-canvas"></canvas>
+              <div class="textLayer" id="document-text-layer"></div>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </main>
+    <script type="module" src="/static/app.js"></script>
+  </body>
+</html>

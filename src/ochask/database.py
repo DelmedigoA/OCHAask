@@ -13,7 +13,6 @@ def rpc(url: str, key: str, function: str, payload: dict[str, Any]) -> Any:
         f"{url.rstrip('/')}/rest/v1/rpc/{function}",
         headers={
             "apikey": key,
-            "Authorization": f"Bearer {key}",
             "Content-Type": "application/json",
         },
         json=payload,
