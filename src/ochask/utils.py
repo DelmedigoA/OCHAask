@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 from uuid import NAMESPACE_URL, UUID, uuid5
@@ -72,3 +73,17 @@ def chunk_payload(chunk: IndexedChunk) -> dict[str, Any]:
         "token_count": chunk.n_tokens,
         "embedding": chunk.embedding,
     }
+
+
+def load_reports(path: Path) -> dict[str, dict[str, Any]]:
+    """Load scraped JSONL reports by ID and reject ambiguous duplicates."""
+    reports: dict[str, dict[str, Any]] = {}
+    with path.open(encoding="utf-8") as source:
+        for line in source:
+            if not line.strip():
+                continue
+            report = json.loads(line)
+            if report["id"] in reports:
+                raise ValueError(f"Duplicate report ID: {report['id']}")
+            reports[report["id"]] = report
+    return reports

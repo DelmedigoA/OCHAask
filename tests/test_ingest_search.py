@@ -5,9 +5,11 @@ from uuid import UUID
 import pytest
 
 from ochask import IndexedChunk, NormalizedChunk, ingest
+from ochask.config import Settings
 from ochask.search import search
 
 REPORT_ID = UUID("e5e91d1e-55a1-531f-8f31-456f21958cd7")
+SETTINGS = Settings("url", "key", "test-model")
 
 
 class Chunk:
@@ -93,9 +95,7 @@ def test_failed_embeddings_do_not_replace(monkeypatch):
             Chunker(),
             len,
             client,
-            "url",
-            "key",
-            "test-model",
+            SETTINGS,
         )
 
 
@@ -137,9 +137,7 @@ def test_index_and_search_smoke(monkeypatch):
             Chunker(),
             len,
             client,
-            "url",
-            "key",
-            "test-model",
+            SETTINGS,
         )
         == 1
     )

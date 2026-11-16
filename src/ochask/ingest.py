@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 from collections.abc import Callable
 from pathlib import Path
@@ -17,6 +16,7 @@ from .models import IndexedChunk, NormalizedChunk
 from .utils import (
     chunk_payload,
     chunk_source_pages,
+    load_reports,
     report_id_from_path,
     report_payload,
     stable_chunk_id,
@@ -77,6 +77,20 @@ def normalize_document(
     return records
 
 
+def embed_chunks(
+    chunks: list[NormalizedChunk],
+    client: OpenAI,
+    model: str,
+    batch_size: int = 64,
+) -> list[IndexedChunk]:
+    """Add embeddings to normalized chunks, preserving their order."""
+    vectors = embed_texts(client, [chunk.text for chunk in chunks], model, batch_size)
+    return [
+        IndexedChunk(**chunk.model_dump(), embedding=vector)
+        for chunk, vector in zip(chunks, vectors, strict=True)
+    ]
+
+
 def index_pdf(
     path: Path,
     report: dict[str, Any],
@@ -84,38 +98,31 @@ def index_pdf(
     chunker: HybridChunker,
     token_count: Callable[[str], int],
     client: OpenAI,
-    url: str,
-    key: str,
-    model: str,
+    settings: Settings,
     batch_size: int = 64,
 ) -> int:
-    """Convert and embed one PDF before atomically replacing its indexed chunks."""
+    """Convert, embed, and atomically replace one report's chunks."""
     report_id = report_id_from_path(path)
     if str(report_id) != str(report["id"]):
         raise ValueError("PDF and report IDs do not match")
+
     document = converter.convert(path).document
     chunks = normalize_document(document, report_id, chunker, token_count)
     if not chunks:
-        raise ValueError(
-            "Document produced no non-empty chunks; existing index was not changed"
-        )
-    vectors = embed_texts(client, [chunk.text for chunk in chunks], model, batch_size)
-    indexed = [
-        IndexedChunk(**chunk.model_dump(), embedding=vector)
-        for chunk, vector in zip(chunks, vectors, strict=True)
-    ]
-    payload = [chunk_payload(chunk) for chunk in indexed]
+        raise ValueError("Document produced no chunks; existing index was not changed")
+
+    indexed = embed_chunks(chunks, client, settings.embedding_model, batch_size)
     rpc(
-        url,
-        key,
+        settings.supabase_url,
+        settings.supabase_service_role_key,
         "replace_report_chunks",
         {
             "report_data": report_payload(report),
-            "chunks_data": payload,
-            "model_name": model,
+            "chunks_data": [chunk_payload(chunk) for chunk in indexed],
+            "model_name": settings.embedding_model,
         },
     )
-    return len(chunks)
+    return len(indexed)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -138,14 +145,7 @@ def main(argv: list[str] | None = None) -> int:
         parser.error(str(exc))
     if args.batch_size < 1:
         parser.error("--batch-size must be positive")
-    reports = {}
-    with args.reports.open(encoding="utf-8") as source:
-        for line in source:
-            if line.strip():
-                report = json.loads(line)
-                if report["id"] in reports:
-                    raise ValueError(f"Duplicate report ID: {report['id']}")
-                reports[report["id"]] = report
+    reports = load_reports(args.reports)
     files = sorted(args.pdfs.glob("*.pdf")) if args.pdfs.is_dir() else [args.pdfs]
     if not files:
         parser.error("No PDFs found")
@@ -170,9 +170,7 @@ def main(argv: list[str] | None = None) -> int:
                 chunker,
                 lambda text: len(encoding.encode(text)),
                 client,
-                settings.supabase_url,
-                settings.supabase_service_role_key,
-                settings.embedding_model,
+                settings,
                 args.batch_size,
             )
             print(f"{path.name}: indexed {count} chunks")
