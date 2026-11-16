@@ -1,0 +1,13 @@
+# ochask
+
+`ochask` is a retrieval-augmented generation (RAG) project for [Bearing Witness](https://bearing-witness.com/). The goal is to let users ask questions about OCHA reports and get answers they can verify against the original sources.
+
+## Current state
+
+- `data/ocha_situation_reports_urls.csv` lists OCHA situation report URLs and metadata.
+- `src/ochask/models.py` defines the report model.
+- `src/ochask/loader.py` contains a prototype CSV loader.
+
+## First milestone
+
+Ingest a small batch of reports, preserve report dates and page references, and verify that generated answers cite the original report pages that support their claims.

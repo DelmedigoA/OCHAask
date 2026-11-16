@@ -1,0 +1,32 @@
+# Python environments and build artifacts
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+
+# Notebooks and temporary files
+notebooks/
+*.ipynb
+.ipynb_checkpoints/
+tmp/
+.DS_Store
+
+# Generated data and benchmark output
+data/pdfs/
+data/scraped/
+data/chunked/
+data/embedding_chunks/
+benchmark/results/

@@ -1,0 +1,290 @@
+{
+  "version": "1.0.0",
+  "language": "en",
+  "pdf_page_numbering": "1-based physical PDF page",
+  "questions": [
+    {
+      "id": "E01",
+      "difficulty": "easy",
+      "question": "According to Flash Update #1, how many internally displaced people were sheltering in how many UNRWA schools by 18:00 on 7 October 2023?",
+      "reference_answer": "At least 20,000 people were sheltering in 44 UNRWA schools.",
+      "key_facts": [
+        "At least 20,000",
+        "44 UNRWA schools"
+      ],
+      "evidence": [
+        {
+          "document_id": "GK00123",
+          "title": "Escalation in the Gaza Strip and Israel | Flash Update #1 as of 18:00, 7 October 2023",
+          "pdf_url": "https://reliefweb.int/attachments/e10b1734-aa3c-4f20-90ad-ade20b9fb4ef/Escalation%20in%20the%20Gaza%20Strip%20and%20Israel%20_%20Flash%20Update%20%231%20as%20of%2018_00%2C%207%20October%202023%20_%20United%20Nations%20Office%20for%20the%20Coordination%20of%20Humanitarian%20Affairs%20-%20occupied%20Palestinian%20territory.pdf",
+          "pdf_sha256": "6bf47395e507e814624ec3d7b30bc7e01abd0753396d9ac93f8c222b8d336442",
+          "page": 2,
+          "excerpt": "By 18:00, at least 20,000 internally displaced people were sheltering in 44 UNRWA schools, including 28 designated emergency shelters, in all areas in the Gaza Strip, except Khan Younis."
+        }
+      ],
+      "expected_answerable": true,
+      "required_document_ids": [
+        "GK00123"
+      ]
+    },
+    {
+      "id": "E02",
+      "difficulty": "easy",
+      "question": "According to Flash Update #159, where was the solar-powered desalination station inaugurated and how many families was it intended to serve?",
+      "reference_answer": "At the Taha Hussein School shelter in Rafah, to produce drinking water for 400 families.",
+      "key_facts": [
+        "Rafah, Taha Hussein School shelter",
+        "400 families"
+      ],
+      "evidence": [
+        {
+          "document_id": "GK00592",
+          "title": "Hostilities in the Gaza Strip and Israel | Flash Update #159 [EN/AR/HE]",
+          "pdf_url": "https://reliefweb.int/attachments/a93ef364-9e4f-4dd9-b261-65d2ee400d83/Hostilities%20in%20the%20Gaza%20Strip%20and%20Israel%20_%20Flash%20Update%20%23159%20_%20United%20Nations%20Office%20for%20the%20Coordination%20of%20Humanitarian%20Affairs%20-%20occupied%20Palestinian%20territory.pdf",
+          "pdf_sha256": "20b1e9296ec3c28539b6f924db30430aff7fe07bd6b8aa623d38f55f91e6553d",
+          "page": 2,
+          "excerpt": "In Rafah, ... the Coastal Municipalities Water Utility (CMWU) and UNICEF inaugurated last week a solar-operated water desalination station ... to produce potable water for 400 families at the Taha Hussein School shelter for internally displaced persons (IDPs)."
+        }
+      ],
+      "expected_answerable": true,
+      "required_document_ids": [
+        "GK00592"
+      ]
+    },
+    {
+      "id": "E03",
+      "difficulty": "easy",
+      "question": "According to the 12 July 2024 Humanitarian Situation Update #190, how many people shared how many toilets in the school shelter in Deir al Balah?",
+      "reference_answer": "14,000 people shared 25 toilets.",
+      "key_facts": [
+        "14,000 people",
+        "25 toilets"
+      ],
+      "evidence": [
+        {
+          "document_id": "GK00676",
+          "title": "Humanitarian Situation Update #190 | Gaza Strip [EN/AR]",
+          "pdf_url": "https://reliefweb.int/attachments/e8a36712-600e-414e-beb0-8a71e007d245/Humanitarian%20Situation%20Update%20%23190%20_%20Gaza%20Strip%20_%20United%20Nations%20Office%20for%20the%20Coordination%20of%20Humanitarian%20Affairs%20-%20occupied%20Palestinian%20territory.pdf",
+          "pdf_sha256": "f47650834bacab1b114ac6fb1626194f107d73951d32f0eae9fc1f744f92c6b7",
+          "page": 1,
+          "excerpt": "Displaced people continue to face harrowing conditions in Gaza; in one school hosting families in Deir al Balah, 14,000 people are sharing 25 toilets, according to UNRWA."
+        }
+      ],
+      "expected_answerable": true,
+      "required_document_ids": [
+        "GK00676"
+      ]
+    },
+    {
+      "id": "M01",
+      "difficulty": "moderate",
+      "question": "In Flash Update #34, how many people on average shared each toilet and each shower at UNRWA facilities, and how many times as many people shared a shower as a toilet?",
+      "reference_answer": "An average of 160 people shared a toilet and 700 a shower; the shower figure was 4.375 times the toilet figure.",
+      "key_facts": [
+        "160 per toilet",
+        "700 per shower",
+        "4.375 times"
+      ],
+      "evidence": [
+        {
+          "document_id": "GK00219",
+          "title": "Hostilities in the Gaza Strip and Israel | Flash Update #34 [EN/AR/HE]",
+          "pdf_url": "https://reliefweb.int/attachments/384c7271-0c8a-4cb9-9c51-3c541d549513/Hostilities%20in%20the%20Gaza%20Strip%20and%20Israel%20_%20Flash%20Update%20%2334%20_%20United%20Nations%20Office%20for%20the%20Coordination%20of%20Humanitarian%20Affairs%20-%20occupied%20Palestinian%20territory.pdf",
+          "pdf_sha256": "24ed9446d124b0ebc148d6535cebefdedd3fe85fdc7b7fe8b2fa56dfe3ce48ce",
+          "page": 3,
+          "excerpt": "On average, 160 people sheltering in UNRWA schools facilities share a single toilet and there is one shower unit for every 700 people."
+        }
+      ],
+      "expected_answerable": true,
+      "required_document_ids": [
+        "GK00219"
+      ]
+    },
+    {
+      "id": "M02",
+      "difficulty": "moderate",
+      "question": "In the response update covering 30 September–13 October 2024, how much fuel did the 12 October mission deliver to Kamal Adwan and Al Awda hospitals respectively, and what was the total?",
+      "reference_answer": "15,000 litres to Kamal Adwan and 5,000 litres to Al Awda, totalling 20,000 litres.",
+      "key_facts": [
+        "15,000 litres to Kamal Adwan",
+        "5,000 litres to Al Awda",
+        "20,000 litres total"
+      ],
+      "evidence": [
+        {
+          "document_id": "GK00751",
+          "title": "Gaza humanitarian response update | 30 September - 13 October 2024",
+          "pdf_url": "https://reliefweb.int/attachments/f648709d-4788-43b0-b5ed-a7d03d464373/Gaza%20Humanitarian%20Response%20Update%20_%2030%20September%20-%2013%20October%202024%20_%20United%20Nations%20Office%20for%20the%20Coordination%20of%20Humanitarian%20Affairs%20-%20occupied%20Palestinian%20territory.pdf",
+          "pdf_sha256": "bb79dafd1d8fc9f1b577fe4855ce7be94f08479caafde697c4345039ca5008a1",
+          "page": 1,
+          "excerpt": "On 12 October, two WHO-led missions ... delivered 20,000 litres of fuel to Kamal Adwan (15,000) and Al Awda (5,000) hospitals, in North Gaza, following three previous attempts."
+        }
+      ],
+      "expected_answerable": true,
+      "required_document_ids": [
+        "GK00751"
+      ]
+    },
+    {
+      "id": "M03",
+      "difficulty": "moderate",
+      "question": "According to Flash Update #2, of the 123,538 people displaced in Gaza by 21:00 on 8 October 2023, how many were estimated to be sheltering in UNRWA schools and how many were not in that school-shelter estimate?",
+      "reference_answer": "UNRWA estimated 73,538 in 64 schools; the arithmetic difference from the overall displaced figure is 50,000. The difference does not specify where those people were staying.",
+      "key_facts": [
+        "123,538 displaced",
+        "73,538 in UNRWA schools",
+        "difference 50,000"
+      ],
+      "evidence": [
+        {
+          "document_id": "GK00124",
+          "title": "Escalation in the Gaza Strip and Israel | Flash Update #2 [EN/AR/HE]",
+          "pdf_url": "https://reliefweb.int/attachments/37980bea-a249-4938-be8c-25ca6241bcb7/Escalation%20in%20the%20Gaza%20Strip%20and%20Israel%20_%20Flash%20Update%20%232%20_%20United%20Nations%20Office%20for%20the%20Coordination%20of%20Humanitarian%20Affairs%20-%20occupied%20Palestinian%20territory.pdf",
+          "pdf_sha256": "d05fe7f74f4f8f8104276c8979e31800b62f08ffce4ce1ea05779773f01e9ba5",
+          "page": 1,
+          "excerpt": "As of 21:00, 123,538 Palestinians had been displaced in Gaza."
+        },
+        {
+          "document_id": "GK00124",
+          "title": "Escalation in the Gaza Strip and Israel | Flash Update #2 [EN/AR/HE]",
+          "pdf_url": "https://reliefweb.int/attachments/37980bea-a249-4938-be8c-25ca6241bcb7/Escalation%20in%20the%20Gaza%20Strip%20and%20Israel%20_%20Flash%20Update%20%232%20_%20United%20Nations%20Office%20for%20the%20Coordination%20of%20Humanitarian%20Affairs%20-%20occupied%20Palestinian%20territory.pdf",
+          "pdf_sha256": "d05fe7f74f4f8f8104276c8979e31800b62f08ffce4ce1ea05779773f01e9ba5",
+          "page": 2,
+          "excerpt": "UNRWA estimates 73,538 people are sheltering in 64 schools, some of which are designated emergency shelters."
+        }
+      ],
+      "expected_answerable": true,
+      "required_document_ids": [
+        "GK00124"
+      ]
+    },
+    {
+      "id": "H01",
+      "difficulty": "hard",
+      "question": "Compare the reported number of displaced people sheltering in UNRWA schools in Flash Updates #2 and #3. What were the numbers and increase, and how many schools were used in each report?",
+      "reference_answer": "Flash Update #2 reported 73,538 people in 64 schools; #3 reported 137,427 in 83 schools. The reported count rose by 63,889 people and 19 schools.",
+      "key_facts": [
+        "73,538 and 64 schools",
+        "137,427 and 83 schools",
+        "increase 63,889 people and 19 schools"
+      ],
+      "evidence": [
+        {
+          "document_id": "GK00124",
+          "title": "Escalation in the Gaza Strip and Israel | Flash Update #2 [EN/AR/HE]",
+          "pdf_url": "https://reliefweb.int/attachments/37980bea-a249-4938-be8c-25ca6241bcb7/Escalation%20in%20the%20Gaza%20Strip%20and%20Israel%20_%20Flash%20Update%20%232%20_%20United%20Nations%20Office%20for%20the%20Coordination%20of%20Humanitarian%20Affairs%20-%20occupied%20Palestinian%20territory.pdf",
+          "pdf_sha256": "d05fe7f74f4f8f8104276c8979e31800b62f08ffce4ce1ea05779773f01e9ba5",
+          "page": 2,
+          "excerpt": "UNRWA estimates 73,538 people are sheltering in 64 schools, some of which are designated emergency shelters."
+        },
+        {
+          "document_id": "GK00127",
+          "title": "Escalation in the Gaza Strip and Israel | Flash Update #3 [EN/AR]",
+          "pdf_url": "https://reliefweb.int/attachments/0579c454-39cd-465e-a2d5-3a127acb2842/Escalation%20in%20the%20Gaza%20Strip%20and%20Israel%20_%20Flash%20Update%20%233%20_%20United%20Nations%20Office%20for%20the%20Coordination%20of%20Humanitarian%20Affairs%20-%20occupied%20Palestinian%20territory.pdf",
+          "pdf_sha256": "cca5da5466545670d1d6c41b91df30f74eb462e707927216309cd371a6b7c431",
+          "page": 5,
+          "excerpt": "137,427 people took shelter in 83 UNRWA schools, some of which are designated emergency shelters."
+        }
+      ],
+      "expected_answerable": true,
+      "required_document_ids": [
+        "GK00124",
+        "GK00127"
+      ]
+    },
+    {
+      "id": "H02",
+      "difficulty": "hard",
+      "question": "What did Flash Update #34 report about the southern desalination plants on 9 November 2023, and what did Flash Update #159 report about a later desalination station in Rafah?",
+      "reference_answer": "On 9 November, one of the two southern plants had shut down for lack of fuel and the other operated at about 5% capacity. By the April update, CMWU and UNICEF had inaugurated a solar-operated station in Rafah for 400 families. These refer to different facilities and dates.",
+      "key_facts": [
+        "One of two southern plants shut due to fuel",
+        "other at about 5%",
+        "later Rafah solar station for 400 families",
+        "different facilities and dates"
+      ],
+      "evidence": [
+        {
+          "document_id": "GK00219",
+          "title": "Hostilities in the Gaza Strip and Israel | Flash Update #34 [EN/AR/HE]",
+          "pdf_url": "https://reliefweb.int/attachments/384c7271-0c8a-4cb9-9c51-3c541d549513/Hostilities%20in%20the%20Gaza%20Strip%20and%20Israel%20_%20Flash%20Update%20%2334%20_%20United%20Nations%20Office%20for%20the%20Coordination%20of%20Humanitarian%20Affairs%20-%20occupied%20Palestinian%20territory.pdf",
+          "pdf_sha256": "24ed9446d124b0ebc148d6535cebefdedd3fe85fdc7b7fe8b2fa56dfe3ce48ce",
+          "page": 4,
+          "excerpt": "In the south, one of the two desalination plants shut down on 9 November due to a lack of fuel, while the other operated at about five per cent of its capacity supplying drinking water to IDP shelters through trucking."
+        },
+        {
+          "document_id": "GK00592",
+          "title": "Hostilities in the Gaza Strip and Israel | Flash Update #159 [EN/AR/HE]",
+          "pdf_url": "https://reliefweb.int/attachments/a93ef364-9e4f-4dd9-b261-65d2ee400d83/Hostilities%20in%20the%20Gaza%20Strip%20and%20Israel%20_%20Flash%20Update%20%23159%20_%20United%20Nations%20Office%20for%20the%20Coordination%20of%20Humanitarian%20Affairs%20-%20occupied%20Palestinian%20territory.pdf",
+          "pdf_sha256": "20b1e9296ec3c28539b6f924db30430aff7fe07bd6b8aa623d38f55f91e6553d",
+          "page": 2,
+          "excerpt": "In Rafah, ... the Coastal Municipalities Water Utility (CMWU) and UNICEF inaugurated last week a solar-operated water desalination station ... to produce potable water for 400 families at the Taha Hussein School shelter for internally displaced persons (IDPs)."
+        }
+      ],
+      "expected_answerable": true,
+      "required_document_ids": [
+        "GK00219",
+        "GK00592"
+      ]
+    },
+    {
+      "id": "V01",
+      "difficulty": "very hard",
+      "question": "Compare the reported debris estimates in the 27 February–4 March 2024 Humanitarian Needs and Response Update and Flash Update #159. What are the estimates and their approximate difference, and why should the difference not be presented as a precise measurement of debris newly generated between the reports?",
+      "reference_answer": "The first estimated approximately 22.93 million metric tons from destroyed properties, mainly residential units; the later report estimated nearly 37.5 million tons of conflict-generated debris throughout Gaza. Their nominal difference is about 14.57 million tons, but the estimates have different stated scopes and approximate timing, so this is not a precise measure of newly generated debris.",
+      "key_facts": [
+        "22.93 million metric tons from destroyed properties",
+        "nearly 37.5 million tons conflict-generated debris",
+        "nominal difference about 14.57 million",
+        "different scopes and estimates"
+      ],
+      "evidence": [
+        {
+          "document_id": "GK00504",
+          "title": "Humanitarian Needs and Response Update | 27 February - 4 March 2024",
+          "pdf_url": "https://reliefweb.int/attachments/ad18d23b-406a-4534-904d-a5f0ef37688d/Humanitarian%20Needs%20and%20Response%20Update%20%7C%2027%20February%20%E2%80%93%204%20March%202024%20%7C%20United%20Nations%20Office%20for%20the%20Coordination%20of%20Humanitarian%20Affairs%20-%20occupied%20Palestinian%20territory.pdf",
+          "pdf_sha256": "897da83ebb01b8781468235378499feeb43eeb35d8b2c78c85b0988ecabd4af4",
+          "page": 4,
+          "excerpt": "Approximately 22,930,000 metric tons of debris has been generated by the destruction of properties, mainly residential units, across the Strip."
+        },
+        {
+          "document_id": "GK00592",
+          "title": "Hostilities in the Gaza Strip and Israel | Flash Update #159 [EN/AR/HE]",
+          "pdf_url": "https://reliefweb.int/attachments/a93ef364-9e4f-4dd9-b261-65d2ee400d83/Hostilities%20in%20the%20Gaza%20Strip%20and%20Israel%20_%20Flash%20Update%20%23159%20_%20United%20Nations%20Office%20for%20the%20Coordination%20of%20Humanitarian%20Affairs%20-%20occupied%20Palestinian%20territory.pdf",
+          "pdf_sha256": "20b1e9296ec3c28539b6f924db30430aff7fe07bd6b8aa623d38f55f91e6553d",
+          "page": 1,
+          "excerpt": "Nearly 37.5 million tons of conflict-generated debris are estimated to be present throughout Gaza, UN agencies assess."
+        }
+      ],
+      "expected_answerable": true,
+      "required_document_ids": [
+        "GK00504",
+        "GK00592"
+      ]
+    },
+    {
+      "id": "V02",
+      "difficulty": "very hard",
+      "question": "Using only Humanitarian Situation Update #190 of 12 July 2024, what was the cumulative number of Palestinians killed in Gaza through the afternoon of 12 July 2024?",
+      "reference_answer": "The report says the casualty figures through the afternoon of 12 July were unavailable at reporting time, so the requested total cannot be determined from it. It instead reports at least 38,345 killed through 11 July, which must not be represented as the 12 July total.",
+      "key_facts": [
+        "12 July afternoon figure unavailable",
+        "38,345 is the figure through 11 July, not 12 July"
+      ],
+      "evidence": [
+        {
+          "document_id": "GK00676",
+          "title": "Humanitarian Situation Update #190 | Gaza Strip [EN/AR]",
+          "pdf_url": "https://reliefweb.int/attachments/e8a36712-600e-414e-beb0-8a71e007d245/Humanitarian%20Situation%20Update%20%23190%20_%20Gaza%20Strip%20_%20United%20Nations%20Office%20for%20the%20Coordination%20of%20Humanitarian%20Affairs%20-%20occupied%20Palestinian%20territory.pdf",
+          "pdf_sha256": "f47650834bacab1b114ac6fb1626194f107d73951d32f0eae9fc1f744f92c6b7",
+          "page": 1,
+          "excerpt": "Between 7 October 2023 and 11 July 2024, at least 38,345 Palestinians were killed and 88,295 were injured, according to MoH in Gaza. Casualty figures covering the period until the afternoon of 12 July are not available as of the time of reporting."
+        }
+      ],
+      "expected_answerable": false,
+      "required_document_ids": [
+        "GK00676"
+      ]
+    }
+  ]
+}
