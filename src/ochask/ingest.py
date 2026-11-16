@@ -114,7 +114,7 @@ def index_pdf(
     indexed = embed_chunks(chunks, client, settings.embedding_model, batch_size)
     rpc(
         settings.supabase_url,
-        settings.supabase_service_role_key,
+        settings.supabase_secret_key,
         "replace_report_chunks",
         {
             "report_data": report_payload(report),

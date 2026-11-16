@@ -35,7 +35,7 @@ print(report.model_dump(mode="json"))
 
 The indexing pipeline uses Granite Docling with the MLX VLM engine and contextualized Docling HybridChunker chunks (target: 450 tokens). It requires Apple Silicon, sufficient memory for the model, and the model download on first use. It replaces the previous PyMuPDF chunking workflow; downloading PDFs still uses PyMuPDF for language detection.
 
-Set `OPENAI_API_KEY`, `OPENAI_EMBEDDING_MODEL`, `SUPABASE_URL`, and the server-only `SUPABASE_SERVICE_ROLE_KEY` in the environment or an ignored `.env` file. For example, set `OPENAI_EMBEDDING_MODEL=text-embedding-3-small`. The selected model must produce 1536-dimensional vectors, and indexing and search must use the same model. Never expose the service role key to a browser. Apply the Supabase migrations to the intended database before indexing. With scraped metadata and downloaded PDFs in their default locations, run:
+Set `OPENAI_API_KEY`, `OPENAI_EMBEDDING_MODEL`, `SUPABASE_URL`, and the server-only `SUPABASE_SECRET_KEY` in the environment or an ignored `.env` file. For example, set `OPENAI_EMBEDDING_MODEL=text-embedding-3-small`. The selected model must produce 1536-dimensional vectors, and indexing and search must use the same model. Use a Supabase secret API key (`sb_secret_...`) and never expose it to a browser. Alternatively, `SUPABASE_SECRET_KEYS` can contain a JSON object with a `default` key. Apply the Supabase migrations to the intended database before indexing. With scraped metadata and downloaded PDFs in their default locations, run:
 
 ```sh
 uv run python -m ochask.ingest data/pdfs --batch-size 64

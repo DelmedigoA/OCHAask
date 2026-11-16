@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 from dataclasses import dataclass
 
@@ -13,7 +14,7 @@ class Settings:
     """Server-side settings; service credentials must never reach browser clients."""
 
     supabase_url: str
-    supabase_service_role_key: str
+    supabase_secret_key: str
     embedding_model: str
 
     @classmethod
@@ -24,16 +25,28 @@ class Settings:
             "OPENAI_API_KEY",
             "OPENAI_EMBEDDING_MODEL",
             "SUPABASE_URL",
-            "SUPABASE_SERVICE_ROLE_KEY",
         )
         values = {name: os.getenv(name, "").strip() for name in required}
+        secret = os.getenv("SUPABASE_SECRET_KEY", "").strip()
+        keys_json = os.getenv("SUPABASE_SECRET_KEYS", "").strip()
+        if not secret and keys_json:
+            try:
+                keys = json.loads(keys_json)
+                secret = keys.get("default", "") if isinstance(keys, dict) else ""
+            except ValueError as exc:
+                raise ValueError("SUPABASE_SECRET_KEYS must be a JSON object") from exc
+            if not isinstance(secret, str):
+                raise ValueError("SUPABASE_SECRET_KEYS default must be a string")
+            secret = secret.strip()
         missing = [name for name, value in values.items() if not value]
+        if not secret:
+            missing.append("SUPABASE_SECRET_KEY (or SUPABASE_SECRET_KEYS.default)")
         if missing:
             raise ValueError(
                 f"Missing required environment variables: {', '.join(missing)}"
             )
         return cls(
             supabase_url=values["SUPABASE_URL"],
-            supabase_service_role_key=values["SUPABASE_SERVICE_ROLE_KEY"],
+            supabase_secret_key=secret,
             embedding_model=values["OPENAI_EMBEDDING_MODEL"],
         )

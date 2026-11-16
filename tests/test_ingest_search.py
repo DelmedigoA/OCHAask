@@ -146,7 +146,7 @@ def test_index_and_search_smoke(monkeypatch):
         "OPENAI_API_KEY",
         "OPENAI_EMBEDDING_MODEL",
         "SUPABASE_URL",
-        "SUPABASE_SERVICE_ROLE_KEY",
+        "SUPABASE_SECRET_KEY",
     ):
         monkeypatch.setenv(name, "test")
     monkeypatch.setattr(search_module, "OpenAI", lambda: client)
@@ -169,8 +169,35 @@ def test_settings_validate_missing_configuration(monkeypatch):
         "OPENAI_API_KEY",
         "OPENAI_EMBEDDING_MODEL",
         "SUPABASE_URL",
-        "SUPABASE_SERVICE_ROLE_KEY",
+        "SUPABASE_SECRET_KEY",
     ):
         monkeypatch.delenv(name, raising=False)
+    monkeypatch.delenv("SUPABASE_SECRET_KEYS", raising=False)
     with pytest.raises(ValueError, match="OPENAI_EMBEDDING_MODEL"):
         config.Settings.from_environment()
+
+
+def test_supabase_secret_keys_json(monkeypatch):
+    from ochask import config
+
+    monkeypatch.setattr(config, "load_dotenv", lambda: None)
+    for name in ("OPENAI_API_KEY", "OPENAI_EMBEDDING_MODEL", "SUPABASE_URL"):
+        monkeypatch.setenv(name, "configured")
+    monkeypatch.delenv("SUPABASE_SECRET_KEY", raising=False)
+    monkeypatch.setenv("SUPABASE_SECRET_KEYS", '{"default":"sb_secret_test"}')
+    assert config.Settings.from_environment().supabase_secret_key == "sb_secret_test"
+
+
+def test_database_sends_secret_only_in_apikey(monkeypatch):
+    from ochask import database
+
+    calls = []
+
+    def post(*args, **kwargs):
+        calls.append(kwargs)
+        return SimpleNamespace(ok=True, content=b"[]", json=lambda: [])
+
+    monkeypatch.setattr(database.requests, "post", post)
+    assert database.rpc("https://example.com", "sb_secret_test", "test", {}) == []
+    assert calls[0]["headers"]["apikey"] == "sb_secret_test"
+    assert "Authorization" not in calls[0]["headers"]
