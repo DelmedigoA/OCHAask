@@ -45,6 +45,17 @@ uv run python -m ochask.ingest data/pdfs/<report-uuid>_report.pdf --reports data
 
 PDF filenames must begin with the report UUID followed by `_`, and matching metadata must be present in the JSONL. The command batches requests to the configured OpenAI embedding model and commits each report atomically. Rerunning a report replaces its previous chunks for that model only after conversion and embedding succeed. Failed documents are reported and the command exits nonzero. Embedding requests incur API costs. Chunks retain all known one-based source page numbers; an empty page list means Docling supplied no provenance.
 
+### Run the full local PDF corpus with live progress
+
+To index all downloaded PDFs and upload them to the private `pdfs` bucket, run:
+
+```sh
+uv run python -u -m ochask.batch_ingest data/pdfs \
+  --reports data/scraped/landing_pages.jsonl
+```
+
+This command checks Supabase first, skips reports that already have chunks for `OPENAI_EMBEDDING_MODEL`, and skips PDF uploads whose stored hash and private Storage object both match the local file. It processes the rest one report at a time, prints live per-report status and elapsed time, and continues after individual failures. It writes a timestamped JSONL run log under `data/ingestion_runs/` (ignored by Git). Rerun the same command to resume: successfully indexed reports and verified PDFs are skipped. The command exits nonzero if any reports fail and prints a final count and elapsed time. It does not print credential values or third-party error bodies.
+
 ## Hybrid search
 
 ```python

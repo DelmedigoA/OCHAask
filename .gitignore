@@ -29,4 +29,5 @@ data/pdfs/
 data/scraped/
 data/chunked/
 data/embedding_chunks/
+data/ingestion_runs/
 benchmark/results/
