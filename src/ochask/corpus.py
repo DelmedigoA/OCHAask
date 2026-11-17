@@ -65,6 +65,7 @@ def corpus_overview(settings: Settings) -> dict[str, Any]:
                 "embedding_model": f"eq.{settings.embedding_model}",
                 "chunk_id": "not.is.null",
             },
+            count_mode="planned",
         )
         reports_future = executor.submit(
             rest_rows,
