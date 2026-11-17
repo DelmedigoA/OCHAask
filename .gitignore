@@ -9,7 +9,6 @@ dist/
 .pytest_cache/
 .ruff_cache/
 .mypy_cache/
-.ruff_cache/
 .coverage
 htmlcov/
 
@@ -24,6 +23,8 @@ notebooks/
 .ipynb_checkpoints/
 tmp/
 .DS_Store
+/.playwright-mcp/
+/supabase/.temp/
 
 # Generated data and benchmark output
 data/pdfs/
@@ -35,6 +36,7 @@ data/ochask-workspace.sqlite3
 data/ochask-workspace.sqlite3-shm
 data/ochask-workspace.sqlite3-wal
 benchmark/results/
+/output/
 
 # Frontend dependencies and local build products
 frontend/node_modules/
