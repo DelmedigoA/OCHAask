@@ -66,7 +66,7 @@ function MonthlyChart({ monthly }: { monthly: CorpusData["monthly"] }) {
       <div className="flex items-baseline justify-between gap-4">
         <div>
           <h2 id="monthly-chart-title" className="text-base font-semibold tracking-tight">Reports by month</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Monthly counts across the full publication span ({monthly.length} months).</p>
+          <p className="mt-1 text-sm text-muted-foreground">Monthly counts across the full publication span.</p>
         </div>
       </div>
       {monthly.length ? (
@@ -131,7 +131,6 @@ export function CorpusPage() {
         <>
           <CorpusStats data={data} />
           <MonthlyChart monthly={data.monthly} />
-          <p className="-mt-5 text-xs leading-5 text-muted-foreground">Token totals include chunk overlap; a deduplicated document-token total is not stored.</p>
           <ReportTable reports={data.reports} />
         </>
       ) : (
