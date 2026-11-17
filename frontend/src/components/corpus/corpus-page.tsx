@@ -71,7 +71,7 @@ function MonthlyChart({ monthly }: { monthly: CorpusData["monthly"] }) {
       </div>
       {monthly.length ? (
         <ChartContainer
-          config={{ reports: { label: "Reports", color: "var(--foreground)" } }}
+          config={{ reports: { label: "Reports", color: "var(--primary)" } }}
           className="h-44 min-h-0 w-full"
           role="img"
           aria-label="Monthly count of indexed reports, based on publication dates"

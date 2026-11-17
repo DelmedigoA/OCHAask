@@ -2,12 +2,12 @@ import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } fro
 import { HttpAgent } from "@ag-ui/client";
 import { AssistantRuntimeProvider, useAuiState } from "@assistant-ui/react";
 import { useAgUiRuntime } from "@assistant-ui/react-ag-ui";
+import bearingWitnessMark from "@/assets/bearing-witness-mark.png";
 import {
-  BookOpenText,
-  LibraryBig,
-  MessageSquareText,
+  Files,
+  MessageCircleMore,
   Moon,
-  Search,
+  ScanSearch,
   Sun,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -93,9 +93,9 @@ function ThemeToggle() {
 function WorkspaceSidebar({ page, navigate }: { page: Page; navigate: (page: Page) => void }) {
   const { isMobile, setOpenMobile } = useSidebar();
   const items = [
-    { page: "corpus" as const, label: "Corpus", icon: LibraryBig },
-    { page: "search" as const, label: "Search", icon: Search },
-    { page: "chat" as const, label: "Chat", icon: MessageSquareText },
+    { page: "corpus" as const, label: "Corpus", icon: Files },
+    { page: "search" as const, label: "Search", icon: ScanSearch },
+    { page: "chat" as const, label: "Chat", icon: MessageCircleMore },
   ];
 
   function openPage(nextPage: Page) {
@@ -109,11 +109,14 @@ function WorkspaceSidebar({ page, navigate }: { page: Page; navigate: (page: Pag
         <SidebarMenu>
           <SidebarMenuItem>
             <div className="flex h-12 items-center gap-2 overflow-hidden rounded-md px-2 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
-              <div className="flex size-8 shrink-0 items-center justify-center rounded-md border bg-background text-foreground">
-                <BookOpenText className="size-4" aria-hidden="true" />
-              </div>
+              <img
+                src={bearingWitnessMark}
+                alt=""
+                aria-hidden="true"
+                className="size-9 shrink-0 rounded-md border border-border/70 bg-[#f7f6f4] object-contain"
+              />
               <div className="flex min-w-0 flex-col gap-0.5 leading-none group-data-[collapsible=icon]:hidden">
-                <span className="font-semibold tracking-tight">OCHAsk</span>
+                <span className="font-display font-semibold tracking-tight">OCHAsk</span>
                 <span className="text-xs text-muted-foreground">Research workspace</span>
               </div>
             </div>
@@ -129,6 +132,7 @@ function WorkspaceSidebar({ page, navigate }: { page: Page; navigate: (page: Pag
                 <SidebarMenuButton
                   isActive={page === itemPage}
                   tooltip={label}
+                  className="h-10 px-3"
                   render={
                     <a
                       href={`/${itemPage}`}
@@ -141,7 +145,7 @@ function WorkspaceSidebar({ page, navigate }: { page: Page; navigate: (page: Pag
                     />
                   }
                 >
-                  <Icon aria-hidden="true" />
+                  <Icon className="size-5" strokeWidth={1.75} aria-hidden="true" />
                   <span>{label}</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
