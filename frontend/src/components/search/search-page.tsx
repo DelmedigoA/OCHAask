@@ -72,7 +72,6 @@ function ResultItem({ result, terms }: { result: SearchResult; terms: string[] }
         <a href={result.landing_url} target="_blank" rel="noreferrer" className="group max-w-4xl text-base font-semibold leading-6 tracking-tight hover:underline">
           {result.title}<ArrowUpRight className="ml-1.5 inline size-3.5 text-muted-foreground transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
         </a>
-        <span className="shrink-0 text-xs tabular-nums text-muted-foreground" title="Hybrid retrieval fusion score">{result.fusion_score.toFixed(4)}</span>
       </div>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
         {date && <time dateTime={result.publication_date ?? undefined}>{date}</time>}
@@ -135,7 +134,7 @@ export function SearchPage() {
         <label htmlFor="report-search" className="sr-only">Search OCHA reports</label>
         <div className="flex flex-col gap-2 rounded-xl border bg-background p-2 shadow-sm sm:flex-row sm:items-center sm:gap-3 sm:rounded-2xl sm:p-3">
           <SearchIcon className="ml-2 hidden size-5 shrink-0 text-muted-foreground sm:block" aria-hidden="true" />
-          <Input id="report-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Ask about an issue, event, location, or response…" className="h-12 border-0 bg-transparent px-2 text-base shadow-none focus-visible:ring-0 sm:h-11" />
+          <Input id="report-search" autoComplete="off" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Ask about an issue, event, location, or response…" className="h-12 border-0 bg-transparent px-2 text-base shadow-none focus-visible:ring-0 autofill:shadow-[inset_0_0_0_1000px_var(--background)] sm:h-11" />
           <div className="flex shrink-0 items-center justify-between gap-2 border-t pt-2 sm:border-l sm:border-t-0 sm:pl-3 sm:pt-0">
             <label htmlFor="result-count" className="text-xs text-muted-foreground">Results</label>
             <select

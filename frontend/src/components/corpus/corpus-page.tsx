@@ -50,8 +50,8 @@ function CorpusStats({ data }: { data: CorpusData }) {
     <dl className="grid grid-cols-1 divide-y border-y sm:grid-cols-3 sm:divide-x sm:divide-y-0">
       {items.map((item) => (
         <div key={item.label} className="py-4 sm:px-5 first:sm:pl-0 last:sm:pr-0">
-          <dt className={item.label === "Publication date range" ? "text-sm font-semibold tracking-tight" : "text-xs font-medium text-muted-foreground"}>{item.label}</dt>
-          <dd className={item.label === "Publication date range" ? "mt-1.5 text-sm font-normal tabular-nums text-muted-foreground sm:text-base" : "mt-1.5 text-xl font-semibold tracking-tight tabular-nums sm:text-2xl"}>{item.value}</dd>
+          <dt className="text-xs font-medium text-muted-foreground">{item.label}</dt>
+          <dd className="mt-1.5 text-xl font-semibold tracking-tight tabular-nums sm:text-2xl">{item.value}</dd>
         </div>
       ))}
     </dl>

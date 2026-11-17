@@ -1,12 +1,11 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import {
   createColumnHelper,
   useTable,
   type SortingState,
 } from "@tanstack/react-table";
-import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, Search } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { dataTableFeatures } from "@/components/corpus/data-table-features";
 
@@ -74,22 +73,13 @@ const columns = columnHelper.columns([
   }),
 ]);
 
-function searchableText(report: CorpusReport) {
-  return [reportTitle(report), report.title, report.publication_date, report.chunk_token_count].join(" ").toLocaleLowerCase();
-}
-
 export function ReportTable({ reports }: { reports: CorpusReport[] }) {
-  const [query, setQuery] = useState("");
   const [sorting, setSorting] = useState<SortingState>([
     { id: "publication_date", desc: true },
   ]);
-  const filteredReports = useMemo(() => {
-    const normalized = query.trim().toLocaleLowerCase();
-    return normalized ? reports.filter((report) => searchableText(report).includes(normalized)) : reports;
-  }, [query, reports]);
   const table = useTable({
     features: dataTableFeatures,
-    data: filteredReports,
+    data: reports,
     columns,
     onSortingChange: setSorting,
     state: { sorting },
@@ -101,12 +91,8 @@ export function ReportTable({ reports }: { reports: CorpusReport[] }) {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h2 id="report-catalog-title" className="text-base font-semibold tracking-tight">Indexed reports</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Search and sort the reports available to OCHAsk.</p>
+          <p className="mt-1 text-sm text-muted-foreground">Browse and sort the reports available to OCHAsk.</p>
         </div>
-        <label className="relative w-full sm:max-w-xs">
-          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input value={query} onChange={(event) => { setQuery(event.target.value); table.setPageIndex(0); }} placeholder="Search report titles…" aria-label="Search indexed reports" className="h-9 pl-9" />
-        </label>
       </div>
 
       <div className="overflow-hidden rounded-lg border bg-background">
@@ -128,14 +114,14 @@ export function ReportTable({ reports }: { reports: CorpusReport[] }) {
                 {row.getVisibleCells().map((cell) => <TableCell key={cell.id}><table.FlexRender cell={cell} /></TableCell>)}
               </TableRow>
             )) : (
-              <TableRow><TableCell colSpan={columns.length} className="h-24 text-center text-sm text-muted-foreground">{query ? "No reports match that search." : "No indexed reports are available."}</TableCell></TableRow>
+              <TableRow><TableCell colSpan={columns.length} className="h-24 text-center text-sm text-muted-foreground">No indexed reports are available.</TableCell></TableRow>
             )}
           </TableBody>
         </Table>
       </div>
 
       <div className="flex flex-col gap-3 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
-        <p>{filteredReports.length.toLocaleString("en-US")} {filteredReports.length === 1 ? "report" : "reports"}{query ? " matched" : ""}</p>
+        <p>{reports.length.toLocaleString("en-US")} {reports.length === 1 ? "report" : "reports"}</p>
         <div className="flex items-center gap-2 self-end sm:self-auto">
           <span className="mr-2 tabular-nums">Page {table.state.pagination.pageIndex + 1} of {pageCount}</span>
           <Button variant="outline" size="icon" className="size-8" onClick={() => table.previousPage()} disabled={!table.getCanPreviousPage()} aria-label="Previous page"><ChevronLeft className="size-4" /></Button>
