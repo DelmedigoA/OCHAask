@@ -30,7 +30,8 @@ import {
 import { TooltipProvider } from "@/components/ui/tooltip";
 
 type Page = "corpus" | "search" | "chat";
-type Conversation = { id: string; title: string; created_at: string; updated_at: string };
+type Conversation = { id: string; title: string; created_at: string; updated_at: string; messages: never[] };
+const CONVERSATION_STORAGE_KEY = "ochask-conversations-v1";
 
 const CorpusPage = lazy(() => import("@/components/corpus/corpus-page").then((module) => ({ default: module.CorpusPage })));
 const SearchPage = lazy(() => import("@/components/search/search-page").then((module) => ({ default: module.SearchPage })));
@@ -49,16 +50,23 @@ function pageFromPath() {
   return "corpus" as const;
 }
 
-async function api<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, {
-    ...init,
-    headers: {
-      ...(init?.body ? { "Content-Type": "application/json" } : {}),
-      ...init?.headers,
-    },
-  });
-  if (!response.ok) throw new Error(`Request failed (${response.status})`);
-  return response.json() as Promise<T>;
+function readConversations(): Conversation[] {
+  try {
+    const value: unknown = JSON.parse(localStorage.getItem(CONVERSATION_STORAGE_KEY) ?? "[]");
+    if (!Array.isArray(value)) return [];
+    return value.filter((item): item is Conversation => item !== null && typeof item === "object"
+      && typeof item.id === "string" && typeof item.title === "string" && Array.isArray(item.messages));
+  } catch {
+    return [];
+  }
+}
+
+function writeConversations(conversations: Conversation[]) {
+  try {
+    localStorage.setItem(CONVERSATION_STORAGE_KEY, JSON.stringify(conversations.slice(0, 50)));
+  } catch {
+    // Keep the active chat usable if browser storage is full or disabled.
+  }
 }
 
 function ThemeToggle() {
@@ -175,23 +183,14 @@ function WorkspaceSidebar({ page, navigate }: { page: Page; navigate: (page: Pag
   );
 }
 
-function ConversationPersistence({ conversationId, onSaved }: { conversationId: string; onSaved: () => void }) {
+function ConversationPersistence({ conversationId, onSaved }: { conversationId: string; onSaved: (id: string, messages: never[]) => void }) {
   const messages = useAuiState((state) => state.thread.messages);
   const isRunning = useAuiState((state) => state.thread.isRunning);
 
   useEffect(() => {
     if (!conversationId || !messages.length || isRunning) return;
-    const title = messages.find((message) => message.role === "user")?.content
-      .filter((part) => part.type === "text")
-      .map((part) => part.text)
-      .join(" ")
-      .trim()
-      .slice(0, 64) || "Research chat";
     const timer = window.setTimeout(() => {
-      void api(`/api/conversations/${conversationId}`, {
-        method: "PUT",
-        body: JSON.stringify({ title, messages }),
-      }).then(onSaved).catch(() => {});
+      onSaved(conversationId, messages as never[]);
     }, 500);
     return () => window.clearTimeout(timer);
   }, [conversationId, isRunning, messages, onSaved]);
@@ -225,24 +224,40 @@ function WorkspaceLayout({
 }
 
 function ChatWorkspace({ page, navigate }: { page: Page; navigate: (page: Page) => void }) {
-  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [conversations, setConversations] = useState<Conversation[]>(readConversations);
   const [currentId, setCurrentId] = useState<string>(() => crypto.randomUUID());
   const [chatMounted, setChatMounted] = useState(page === "chat");
-  const reloadConversations = useCallback(() => {
-    void api<{ conversations: Conversation[] }>("/api/conversations")
-      .then((data) => setConversations(data.conversations))
-      .catch(() => {});
-  }, []);
-  const createConversation = useCallback(async () => {
-    const result = await api<{ id: string }>("/api/conversations", {
-      method: "POST",
-      body: JSON.stringify({}),
+  const updateConversations = useCallback((update: (items: Conversation[]) => Conversation[]) => {
+    setConversations((items) => {
+      const next = update(items)
+        .sort((a, b) => b.updated_at.localeCompare(a.updated_at))
+        .slice(0, 50);
+      writeConversations(next);
+      return next;
     });
-    setCurrentId(result.id);
-    reloadConversations();
-  }, [reloadConversations]);
-
-  useEffect(() => { reloadConversations(); }, [reloadConversations]);
+  }, []);
+  const saveConversation = useCallback((id: string, messages: never[]) => {
+    const now = new Date().toISOString();
+    updateConversations((items) => {
+      const existing = items.find((item) => item.id === id);
+      const firstQuestion = (messages as { role?: string; content?: { type?: string; text?: string }[] }[])
+        .find((message) => message.role === "user")?.content
+        ?.filter((part) => part.type === "text")
+        .map((part) => part.text ?? "")
+        .join(" ").trim().slice(0, 64);
+      const next: Conversation = {
+        id,
+        title: existing?.title ?? firstQuestion ?? "Research chat",
+        created_at: existing?.created_at ?? now,
+        updated_at: now,
+        messages,
+      };
+      return [...items.filter((item) => item.id !== id), next];
+    });
+  }, [updateConversations]);
+  const createConversation = useCallback(() => {
+    setCurrentId(crypto.randomUUID());
+  }, []);
   useEffect(() => { if (page === "chat") setChatMounted(true); }, [page]);
 
   const agent = useMemo(
@@ -266,22 +281,19 @@ function ChatWorkspace({ page, navigate }: { page: Page; navigate: (page: Page) 
         })),
         onSwitchToNewThread: createConversation,
         onSwitchToThread: async (threadId: string) => {
-          const loaded = await api<{ messages: never[] }>(`/api/conversations/${threadId}/load`);
+          const loaded = conversations.find((conversation) => conversation.id === threadId);
+          if (!loaded) return { messages: [] };
           setCurrentId(threadId);
           return { messages: loaded.messages };
         },
         onDelete: async (threadId: string) => {
-          await api(`/api/conversations/${threadId}`, { method: "DELETE", body: "{}" });
-          if (threadId === currentId) await createConversation();
-          reloadConversations();
+          updateConversations((items) => items.filter((item) => item.id !== threadId));
+          if (threadId === currentId) createConversation();
         },
         onRename: async (threadId: string, title: string) => {
-          const loaded = await api<{ messages: never[] }>(`/api/conversations/${threadId}/load`);
-          await api(`/api/conversations/${threadId}`, {
-            method: "PUT",
-            body: JSON.stringify({ title, messages: loaded.messages }),
-          });
-          reloadConversations();
+          updateConversations((items) => items.map((item) => item.id === threadId
+            ? { ...item, title: title.trim().slice(0, 160) || "Research chat", updated_at: new Date().toISOString() }
+            : item));
         },
       },
     },
@@ -289,7 +301,7 @@ function ChatWorkspace({ page, navigate }: { page: Page; navigate: (page: Page) 
 
   return (
     <AssistantRuntimeProvider runtime={runtime}>
-      <ConversationPersistence conversationId={currentId} onSaved={reloadConversations} />
+      <ConversationPersistence conversationId={currentId} onSaved={saveConversation} />
       <WorkspaceLayout page={page} navigate={navigate}>
         {page === "corpus" && <div className="flex-1 overflow-y-auto"><Suspense fallback={<PageLoading />}><CorpusPage /></Suspense></div>}
         {page === "search" && <div className="flex-1 overflow-y-auto"><Suspense fallback={<PageLoading />}><SearchPage /></Suspense></div>}
