@@ -228,7 +228,7 @@ async def agui_chat(request: Request) -> Response:
             request_limit=5,
             tool_calls_limit=3,
             input_tokens_limit=40_000,
-            per_request_input_tokens_limit=20_000,
+            per_request_input_tokens_limit=128_000,
             output_tokens_limit=2_048,
             count_tokens_before_request=True,
         ),
