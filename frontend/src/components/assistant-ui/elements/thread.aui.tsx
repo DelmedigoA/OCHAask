@@ -14,18 +14,12 @@ import {
   ReasoningText,
   ReasoningTrigger,
 } from "@/components/assistant-ui/elements/reasoning.aui";
-import { ToolFallback } from "@/components/assistant-ui/elements/tool-fallback.aui";
-import {
-  ToolGroupContent,
-  ToolGroupRoot,
-  ToolGroupTrigger,
-} from "@/components/assistant-ui/elements/tool-group.aui";
+import { SearchReportToolCall } from "@/components/assistant-ui/elements/search-report-tool-call";
 import { TooltipIconButton } from "@/components/assistant-ui/elements/tooltip-icon-button";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import {
-  ActionBarMorePrimitive,
   ActionBarPrimitive,
   AuiIf,
   type AssistantState,
@@ -46,14 +40,10 @@ import {
   ArrowDownIcon,
   ArrowUpIcon,
   AudioLinesIcon,
-  CheckIcon,
   ChevronDownIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
-  CopyIcon,
-  DownloadIcon,
   MicIcon,
-  MoreHorizontalIcon,
   PencilIcon,
   PhoneIcon,
   RefreshCwIcon,
@@ -61,42 +51,18 @@ import {
   Loader2Icon,
   SquareIcon,
   PlayIcon,
-  ThumbsDownIcon,
-  ThumbsUpIcon,
 } from "lucide-react";
 import {
   createContext,
   useContext,
   useLayoutEffect,
   useRef,
-  useState,
   type ComponentType,
   type FC,
   type PropsWithChildren,
 } from "react";
 
 export type ThreadGroupPart = MessagePrimitive.GroupedParts.GroupPart;
-
-const DefaultToolGroup: FC<PropsWithChildren<{ group: ThreadGroupPart }>> = ({
-  group,
-  children,
-}) => {
-  const [open, setOpen] = useState(false);
-
-  return (
-    <ToolGroupRoot
-      variant="ghost"
-      open={open || group.counts.requiresAction > 0}
-      onOpenChange={setOpen}
-    >
-      <ToolGroupTrigger
-        count={group.indices.length}
-        active={group.status.type === "running"}
-      />
-      <ToolGroupContent>{children}</ToolGroupContent>
-    </ToolGroupRoot>
-  );
-};
 
 const shouldShowComposerResume = (s: AssistantState) =>
   !!s.thread.canResume && s.composer.type === "thread" && s.composer.isEmpty;
@@ -383,25 +349,8 @@ const SpokenMessage: FC = () => {
             </span>
           )}
         </div>
-        <SpokenActionBar />
       </div>
     </MessagePrimitive.Root>
-  );
-};
-
-const SpokenActionBar: FC = () => {
-  return (
-    <ActionBarPrimitive.Root
-      hideWhenRunning
-      autohide="always"
-      className="aui-spoken-action-bar text-muted-foreground flex shrink-0 gap-1"
-    >
-      <ActionBarPrimitive.Copy render={<TooltipIconButton tooltip="Copy" className="size-6" />}><AuiIf condition={(s) => s.message.isCopied}>
-                      <CheckIcon className="animate-in zoom-in-50 fade-in duration-200 ease-out" />
-                    </AuiIf><AuiIf condition={(s) => !s.message.isCopied}>
-                      <CopyIcon className="animate-in zoom-in-75 fade-in duration-150" />
-                    </AuiIf></ActionBarPrimitive.Copy>
-    </ActionBarPrimitive.Root>
   );
 };
 
@@ -606,22 +555,30 @@ const MessageError: FC = () => {
 
 const AssistantMessage: FC = () => {
   const {
-    ToolFallback: ToolFallbackComponent = ToolFallback,
+    ToolFallback: ToolFallbackComponent = SearchReportToolCall,
     ToolGroup,
     ReasoningGroup,
     TaskGroup: TaskGroupComponent,
   } = useContext(ThreadComponentsContext);
   const groupBy = TaskGroupComponent ? taskAwareGroupBy : messageGroupBy;
-
-  const ACTION_BAR_PT = "pt-1.5";
-  // Keep the action bar inside the contained root's paint box, then cancel its reserved space in flow.
-  const ACTION_BAR_HEIGHT = `min-h-7.5 ${ACTION_BAR_PT}`;
+  const isSearchToolOnlyMessage = useAuiState(
+    (s) =>
+      s.message.parts.length > 0 &&
+      s.message.parts.every(
+        (part) =>
+          part.type === "tool-call" &&
+          part.toolName === "search_report_evidence",
+      ),
+  );
 
   return (
     <MessagePrimitive.Root
       data-slot="aui_assistant-message-root"
       data-role="assistant"
-      className="fade-in slide-in-from-bottom-1 animate-in relative -mb-7.5 pb-7.5 duration-150 [contain-intrinsic-size:auto_200px] [content-visibility:auto]"
+      className={cn(
+        "fade-in slide-in-from-bottom-1 animate-in relative duration-150 [contain-intrinsic-size:auto_200px] [content-visibility:auto]",
+        isSearchToolOnlyMessage && "-mb-6",
+      )}
     >
       <div
         data-slot="aui_assistant-message-content"
@@ -640,9 +597,7 @@ const AssistantMessage: FC = () => {
                 if (ToolGroup) {
                   return <ToolGroup group={part}>{children}</ToolGroup>;
                 }
-                return (
-                  <DefaultToolGroup group={part}>{children}</DefaultToolGroup>
-                );
+                return <div className="flex flex-col gap-1.5">{children}</div>;
               case "group-reasoning": {
                 if (ReasoningGroup) {
                   return (
@@ -700,47 +655,8 @@ const AssistantMessage: FC = () => {
         <MessageError />
       </div>
 
-      <div
-        data-slot="aui_assistant-message-footer"
-        className={cn("ms-2 flex items-center", ACTION_BAR_HEIGHT)}
-      >
-        <BranchPicker />
-        <AssistantActionBar />
-      </div>
+      <BranchPicker className="ms-2" />
     </MessagePrimitive.Root>
-  );
-};
-
-const AssistantActionBar: FC = () => {
-  return (
-    <ActionBarPrimitive.Root
-      hideWhenRunning
-      autohide="not-last"
-      className="aui-assistant-action-bar-root text-muted-foreground animate-in fade-in col-start-3 row-start-2 -ms-1 flex gap-1 duration-200"
-    >
-      <ActionBarPrimitive.Copy render={<TooltipIconButton tooltip="Copy" />}><AuiIf condition={(s) => s.message.isCopied}>
-                      <CheckIcon className="animate-in zoom-in-50 fade-in duration-200 ease-out" />
-                    </AuiIf><AuiIf condition={(s) => !s.message.isCopied}>
-                      <CopyIcon className="animate-in zoom-in-75 fade-in duration-150" />
-                    </AuiIf></ActionBarPrimitive.Copy>
-      <AuiIf condition={(s) => s.thread.capabilities.feedback}>
-        <ActionBarPrimitive.FeedbackPositive render={<TooltipIconButton tooltip="Helpful" className="data-[submitted=true]:bg-accent data-[submitted=true]:text-accent-foreground" />}><ThumbsUpIcon /></ActionBarPrimitive.FeedbackPositive>
-        <ActionBarPrimitive.FeedbackNegative render={<TooltipIconButton tooltip="Not helpful" className="data-[submitted=true]:bg-accent data-[submitted=true]:text-accent-foreground" />}><ThumbsDownIcon /></ActionBarPrimitive.FeedbackNegative>
-      </AuiIf>
-      <ActionBarPrimitive.Reload render={<TooltipIconButton tooltip="Refresh" />}><RefreshCwIcon /></ActionBarPrimitive.Reload>
-      <ActionBarMorePrimitive.Root>
-        <ActionBarMorePrimitive.Trigger render={<TooltipIconButton tooltip="More" className="data-[state=open]:bg-accent" />}><MoreHorizontalIcon /></ActionBarMorePrimitive.Trigger>
-        <ActionBarMorePrimitive.Content
-          side="bottom"
-          align="start"
-          sideOffset={6}
-          className="aui-action-bar-more-content bg-popover text-popover-foreground data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[state=open]:animate-in data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=closed]:animate-out data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 min-w-[8rem] overflow-hidden rounded-xl border p-1.5"
-        >
-          <ActionBarPrimitive.ExportMarkdown render={<ActionBarMorePrimitive.Item className="aui-action-bar-more-item hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm outline-none select-none" />}><DownloadIcon className="size-4" />Export as Markdown
-                              </ActionBarPrimitive.ExportMarkdown>
-        </ActionBarMorePrimitive.Content>
-      </ActionBarMorePrimitive.Root>
-    </ActionBarPrimitive.Root>
   );
 };
 

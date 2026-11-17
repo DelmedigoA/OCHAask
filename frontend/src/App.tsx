@@ -274,6 +274,7 @@ function ChatWorkspace({ page, navigate }: { page: Page; navigate: (page: Page) 
   );
   const runtime = useAgUiRuntime({
     agent,
+    joinAdjacentAssistantMessages: true,
     adapters: {
       threadList: {
         threadId: currentId,
