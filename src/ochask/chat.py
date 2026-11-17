@@ -12,9 +12,7 @@ from pydantic_ai import Agent, RunContext
 from .search import SearchResult, search
 
 load_dotenv()
-model = os.getenv("OPENAI_CHAT_MODEL", "").strip()
-if not model:
-    raise ValueError("OPENAI_CHAT_MODEL is required")
+model = os.getenv("OPENAI_CHAT_MODEL", "").strip() or None
 
 
 @dataclass
@@ -26,6 +24,7 @@ class SearchContext:
 
 agent = Agent(
     model,
+    defer_model_check=True,
     deps_type=SearchContext,
     instructions=files("ochask")
     .joinpath("prompts", "instructions.md")
