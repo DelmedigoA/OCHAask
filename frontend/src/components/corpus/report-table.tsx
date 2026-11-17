@@ -25,7 +25,6 @@ const columnHelper = createColumnHelper<typeof dataTableFeatures, CorpusReport>(
 function reportTitle(report: Pick<CorpusReport, "title">) {
   let title = report.title.replace(/^\s*oPt:\s*/i, "").trim();
   const issueMatch = title.match(/(?:#|\bNo\.?)\s*(\d+)\b/i);
-  const issue = issueMatch?.[1] ?? null;
   if (issueMatch) title = title.replace(issueMatch[0], "").replace(/\s{2,}/g, " ").trim();
 
   title = title.replace(/\s+\[(?:[A-Z]{2,3})(?:\/[A-Z]{2,3})*\]\s*$/i, "").trim();
@@ -36,7 +35,7 @@ function reportTitle(report: Pick<CorpusReport, "title">) {
     title = title.slice(0, dateSuffix.index).trim();
   }
 
-  return { title: title || "Untitled report", issue };
+  return title || "Untitled report";
 }
 
 const sortableHeader = (title: string) => ({ column }: { column: { toggleSorting: (desc?: boolean) => void; getIsSorted: () => false | "asc" | "desc" } }) => (
@@ -61,15 +60,9 @@ const columns = columnHelper.columns([
         rel="noreferrer"
         className="line-clamp-2 min-w-64 max-w-[36rem] font-medium leading-5 text-foreground hover:underline"
       >
-        {reportTitle(row.original).title}
+        {reportTitle(row.original)}
       </a>
     ),
-  }),
-  columnHelper.display({
-    id: "issue",
-    header: () => <span>Issue</span>,
-    cell: ({ row }) =>
-      reportTitle(row.original).issue ?? <span className="text-muted-foreground">—</span>,
   }),
   columnHelper.accessor("publication_date", {
     header: sortableHeader("Publication date"),
@@ -82,8 +75,7 @@ const columns = columnHelper.columns([
 ]);
 
 function searchableText(report: CorpusReport) {
-  const details = reportTitle(report);
-  return [details.title, details.issue, report.title, report.publication_date, report.chunk_token_count].join(" ").toLocaleLowerCase();
+  return [reportTitle(report), report.title, report.publication_date, report.chunk_token_count].join(" ").toLocaleLowerCase();
 }
 
 export function ReportTable({ reports }: { reports: CorpusReport[] }) {
