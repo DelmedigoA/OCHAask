@@ -18,7 +18,7 @@ import {
 export interface ToolCallProps {
   label: string;
   activeLabel: string;
-  query: string;
+  query?: string;
   request: string;
   result: string;
   running: boolean;
@@ -61,15 +61,17 @@ export function ToolCall({
           </ShimmerLabel>
           <>{label}</>
         </SwapLabel>
-        <span
-          className={cn(
-            mono,
-            "bg-foreground/[0.06] text-foreground/70 min-w-0 truncate rounded-md px-1.5 py-0.5",
-          )}
-        >
-          {query}
-        </span>
-        <span className="ms-auto flex w-4 shrink-0 items-center justify-end">
+        {query && (
+          <span
+            className={cn(
+              mono,
+              "bg-foreground/[0.06] text-foreground/70 min-w-0 truncate rounded-md px-1.5 py-0.5",
+            )}
+          >
+            {query}
+          </span>
+        )}
+        <span className={cn("flex w-4 shrink-0 items-center justify-end", query && "ms-auto")}>
           {running ? null : failed ? (
             <XIcon
               role="img"

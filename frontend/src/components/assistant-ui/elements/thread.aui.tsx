@@ -5,6 +5,7 @@ import {
 } from "@/components/assistant-ui/elements/attachment.aui";
 import { File, getFileHref } from "@/components/assistant-ui/elements/file";
 import { ThreadFollowupSuggestions } from "@/components/assistant-ui/elements/follow-up-suggestions.aui";
+import { GeoMapToolCall } from "@/components/assistant-ui/elements/geo-map-tool-call";
 import { Image } from "@/components/assistant-ui/elements/image";
 import { MarkdownText } from "@/components/assistant-ui/elements/markdown-text";
 import {
@@ -40,7 +41,6 @@ import {
   ArrowDownIcon,
   ArrowUpIcon,
   AudioLinesIcon,
-  ChevronDownIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   MicIcon,
@@ -94,11 +94,17 @@ export type ThreadComponents = {
   TaskGroup?: ComponentType<{ group: ThreadGroupPart }> | undefined;
 };
 
-const messageGroupBy = groupPartByType({
+const defaultMessageGroupBy = groupPartByType({
   reasoning: ["group-chainOfThought", "group-reasoning"],
   "tool-call": ["group-chainOfThought", "group-tool"],
   "standalone-tool-call": [],
 });
+
+const isLocationLookup = (part: Parameters<typeof defaultMessageGroupBy>[0]) =>
+  part.type === "tool-call" && part.toolName === "search_location";
+
+const messageGroupBy: typeof defaultMessageGroupBy = (part, context) =>
+  isLocationLookup(part) ? [] : defaultMessageGroupBy(part, context);
 
 type ThreadGroupKey =
   | "group-chainOfThought"
@@ -124,20 +130,14 @@ const taskAwareGroupBy = (
     : path;
 };
 
-export type ChatEffort = "low" | "medium" | "high" | "max";
-
 export type ThreadProps = {
   components?: ThreadComponents | undefined;
   autoFocus?: boolean | undefined;
-  effort: ChatEffort;
-  onEffortChange: (effort: ChatEffort) => void;
 };
 
 type ThreadRootProps = {
   isEmpty: boolean;
   autoFocus: boolean;
-  effort: ChatEffort;
-  onEffortChange: (effort: ChatEffort) => void;
 };
 
 const EMPTY_COMPONENTS: ThreadComponents = {};
@@ -182,14 +182,12 @@ const ThreadHistorySkeleton: FC = () => (
 export const Thread: FC<ThreadProps> = ({
   components = EMPTY_COMPONENTS,
   autoFocus = true,
-  effort,
-  onEffortChange,
 }) => {
   const isEmpty = useAuiState(isNewChatView);
 
   return (
     <ThreadComponentsContext.Provider value={components}>
-      <ThreadRoot isEmpty={isEmpty} autoFocus={autoFocus} effort={effort} onEffortChange={onEffortChange} />
+      <ThreadRoot isEmpty={isEmpty} autoFocus={autoFocus} />
     </ThreadComponentsContext.Provider>
   );
 };
@@ -197,8 +195,6 @@ export const Thread: FC<ThreadProps> = ({
 const ThreadRoot: FC<ThreadRootProps> = ({
   isEmpty,
   autoFocus,
-  effort,
-  onEffortChange,
 }) => {
   const { Welcome = ThreadWelcome } = useContext(ThreadComponentsContext);
 
@@ -251,7 +247,7 @@ const ThreadRoot: FC<ThreadRootProps> = ({
           >
             <ThreadScrollToBottom />
             <ThreadFollowupSuggestions />
-            <Composer autoFocus={autoFocus} effort={effort} onEffortChange={onEffortChange} />
+            <Composer autoFocus={autoFocus} />
             <AuiIf condition={(s) => isNewChatView(s) && s.composer.isEmpty}>
               <ThreadSuggestions />
             </AuiIf>
@@ -458,9 +454,9 @@ const ThreadSuggestionItem: FC = () => {
   );
 };
 
-type ComposerProps = Pick<ThreadRootProps, "autoFocus" | "effort" | "onEffortChange">;
+type ComposerProps = Pick<ThreadRootProps, "autoFocus">;
 
-const Composer: FC<ComposerProps> = ({ autoFocus, effort, onEffortChange }) => {
+const Composer: FC<ComposerProps> = ({ autoFocus }) => {
   return (
     <ComposerPrimitive.Root className="aui-composer-root relative flex w-full flex-col rounded-2xl border border-input bg-background p-2 transition-colors focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/20">
       <ComposerPrimitive.Input
@@ -471,12 +467,12 @@ const Composer: FC<ComposerProps> = ({ autoFocus, effort, onEffortChange }) => {
         enterKeyHint="send"
         aria-label="Message input"
       />
-      <ComposerAction effort={effort} onEffortChange={onEffortChange} />
+      <ComposerAction />
     </ComposerPrimitive.Root>
   );
 };
 
-const ComposerAction: FC<{ effort: ChatEffort; onEffortChange: (effort: ChatEffort) => void }> = ({ effort, onEffortChange }) => {
+const ComposerAction: FC = () => {
   // The stop control only cancels the send while no run it could stop is going.
   const isSending = useAuiState(
     (s) =>
@@ -487,21 +483,6 @@ const ComposerAction: FC<{ effort: ChatEffort; onEffortChange: (effort: ChatEffo
   return (
     <div className="aui-composer-action-wrapper relative flex items-center justify-between gap-3 px-1 pb-1">
       <div className="ml-auto flex items-center gap-1.5">
-        <label className="relative inline-flex items-center">
-          <span className="sr-only">Reasoning effort</span>
-          <select
-            aria-label="Reasoning effort"
-            value={effort}
-            onChange={(event) => onEffortChange(event.target.value as ChatEffort)}
-            className="h-7 cursor-pointer appearance-none bg-transparent py-1 ps-2 pe-5 text-sm text-muted-foreground outline-none hover:text-foreground focus-visible:text-foreground"
-          >
-            <option value="low">Low</option>
-            <option value="medium">Medium</option>
-            <option value="high">High</option>
-            <option value="max">Max</option>
-          </select>
-          <ChevronDownIcon aria-hidden="true" className="pointer-events-none absolute end-1 size-3.5 text-muted-foreground" />
-        </label>
         <AuiIf condition={(s) => s.thread.capabilities.dictation}>
           <AuiIf condition={(s) => s.composer.dictation == null}>
             <ComposerPrimitive.Dictate render={<TooltipIconButton tooltip="Voice input" side="bottom" type="button" variant="ghost" size="icon" className="aui-composer-dictate text-muted-foreground hover:text-foreground size-7 rounded-full" aria-label="Start voice input" />}><MicIcon className="aui-composer-dictate-icon size-4" /></ComposerPrimitive.Dictate>
@@ -561,6 +542,9 @@ const AssistantMessage: FC = () => {
     TaskGroup: TaskGroupComponent,
   } = useContext(ThreadComponentsContext);
   const groupBy = TaskGroupComponent ? taskAwareGroupBy : messageGroupBy;
+  const isLocationLookupOnly = useAuiState(
+    (s) => s.message.parts.length > 0 && s.message.parts.every(isLocationLookup),
+  );
   const isSearchToolOnlyMessage = useAuiState(
     (s) =>
       s.message.parts.length > 0 &&
@@ -570,6 +554,8 @@ const AssistantMessage: FC = () => {
           part.toolName === "search_report_evidence",
       ),
   );
+
+  if (isLocationLookupOnly) return null;
 
   return (
     <MessagePrimitive.Root
@@ -622,7 +608,12 @@ const AssistantMessage: FC = () => {
               case "reasoning":
                 return <Reasoning {...part} />;
               case "tool-call":
-                return part.toolUI ?? <ToolFallbackComponent {...part} />;
+                if (isLocationLookup(part)) return null;
+                if (part.toolName === "show_geo_map") {
+                  return <GeoMapToolCall {...part} />;
+                }
+                if (part.toolUI) return part.toolUI;
+                return <ToolFallbackComponent {...part} />;
               case "data":
                 return null;
               case "file":
