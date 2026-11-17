@@ -24,8 +24,8 @@ async function fetchCorpus(signal?: AbortSignal) {
 
 function dateLabel(value: string | null) {
   if (!value) return "—";
-  return new Date(`${value}T00:00:00`).toLocaleDateString("en-GB", {
-    day: "2-digit",
+  return new Date(`${value}T00:00:00`).toLocaleDateString("en-US", {
+    day: "numeric",
     month: "short",
     year: "numeric",
   });
@@ -43,15 +43,15 @@ function CorpusStats({ data }: { data: CorpusData }) {
   const items = [
     { label: "Indexed reports", value: data.reports_count.toLocaleString("en-US") },
     { label: "Chunk tokens", value: tokenLabel(data.chunk_token_count) },
-    { label: "Publication span", value: dateSpan },
+    { label: "Publication date range", value: dateSpan },
   ];
 
   return (
     <dl className="grid grid-cols-1 divide-y border-y sm:grid-cols-3 sm:divide-x sm:divide-y-0">
       {items.map((item) => (
         <div key={item.label} className="py-4 sm:px-5 first:sm:pl-0 last:sm:pr-0">
-          <dt className="text-xs font-medium text-muted-foreground">{item.label}</dt>
-          <dd className={item.label === "Publication span" ? "mt-1.5 text-lg font-semibold tracking-tight tabular-nums sm:text-xl" : "mt-1.5 text-xl font-semibold tracking-tight tabular-nums sm:text-2xl"}>{item.value}</dd>
+          <dt className={item.label === "Publication date range" ? "text-sm font-semibold tracking-tight" : "text-xs font-medium text-muted-foreground"}>{item.label}</dt>
+          <dd className={item.label === "Publication date range" ? "mt-1.5 text-sm font-normal tabular-nums text-muted-foreground sm:text-base" : "mt-1.5 text-xl font-semibold tracking-tight tabular-nums sm:text-2xl"}>{item.value}</dd>
         </div>
       ))}
     </dl>
