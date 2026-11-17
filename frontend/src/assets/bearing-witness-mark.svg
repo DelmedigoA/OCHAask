@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="130 150 990 990" width="512" height="512" role="img" aria-labelledby="title desc">
+  <title id="title">Bearing Witness visual mark</title>
+  <desc id="desc">Red square crossed diagonally by an irregular black silhouette, with transparent background and no text.</desc>
+  <rect x="336.5" y="358.5" width="566" height="566" fill="#932B2F"/>
+  <path fill="#131011" d="
+    M 902 198
+    C 907 195 912 199 929 210
+    L 1075 306
+    C 1083 311 1083 332 1076 344
+    C 1069 356 1053 359 1047 367
+    C 1030 385 1013 398 981 407
+    C 944 426 904 460 863 491
+    L 624 671
+    C 603 692 574 721 562 737
+    C 545 756 548 772 554 795
+    C 568 833 579 846 576 881
+    C 575 898 563 912 544 919
+    L 522 925
+    C 494 936 490 970 470 985
+    L 362 1032
+    C 342 1050 319 1068 300 1080
+    C 295 1083 292 1081 290 1073
+    L 255 982
+    C 245 956 242 939 237 927
+    C 220 895 191 869 176 851
+    C 171 844 174 840 180 835
+    L 495 590
+    C 559 538 647 458 706 399
+    C 782 326 846 264 896 202
+    Z"/>
+</svg>

@@ -2,7 +2,7 @@ import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } fro
 import { HttpAgent } from "@ag-ui/client";
 import { AssistantRuntimeProvider, useAuiState } from "@assistant-ui/react";
 import { useAgUiRuntime } from "@assistant-ui/react-ag-ui";
-import bearingWitnessMark from "@/assets/bearing-witness-mark.png";
+import bearingWitnessMark from "@/assets/bearing-witness-mark.svg";
 import {
   Files,
   MessageCircleMore,
