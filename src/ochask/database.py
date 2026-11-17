@@ -108,10 +108,13 @@ def rest_rows(
     select: str,
     filters: dict[str, str] | None = None,
     page_size: int = 1000,
+    count_mode: str = "exact",
 ) -> list[dict[str, Any]]:
     """Read all rows from a known PostgREST table, paging past its row limit."""
     if not 1 <= page_size <= 1000:
         raise ValueError("page_size must be between 1 and 1000")
+    if count_mode not in {"exact", "planned", "estimated"}:
+        raise ValueError("count_mode must be exact, planned, or estimated")
 
     endpoint = f"{url.rstrip('/')}/rest/v1/{table}"
 
@@ -119,15 +122,15 @@ def rest_rows(
         offset: int,
         range_size: int = page_size,
         *,
-        exact_count: bool = False,
+        include_count: bool = False,
     ) -> tuple[list[dict[str, Any]], int | None]:
         headers = {
             "apikey": key,
             "Range-Unit": "items",
             "Range": f"{offset}-{offset + range_size - 1}",
         }
-        if exact_count:
-            headers["Prefer"] = "count=exact"
+        if include_count:
+            headers["Prefer"] = f"count={count_mode}"
         try:
             response = requests.get(
                 endpoint,
@@ -147,32 +150,50 @@ def rest_rows(
             raise RuntimeError(f"Supabase {table} returned an unexpected response")
 
         total = None
-        if exact_count:
+        if include_count:
             content_range = response.headers.get("content-range", "")
             try:
                 total_text = content_range.rsplit("/", 1)[1]
                 total = None if total_text == "*" else int(total_text)
             except (IndexError, ValueError) as exc:
-                raise RuntimeError(f"Supabase {table} did not return an exact count") from exc
+                raise RuntimeError(
+                    f"Supabase {table} did not return a {count_mode} count"
+                ) from exc
             if total is None:
-                raise RuntimeError(f"Supabase {table} did not return an exact count")
+                raise RuntimeError(f"Supabase {table} did not return a {count_mode} count")
         return page, total
 
-    first_page, total = fetch_page(0, exact_count=True)
+    first_page, total = fetch_page(0, include_count=True)
+    if not first_page and total == 0:
+        return []
     if not first_page and total:
-        raise RuntimeError(f"Supabase {table} returned an empty page before its exact count")
+        raise RuntimeError(
+            f"Supabase {table} returned an empty page before its reported count"
+        )
     effective_page_size = len(first_page)
     offsets = range(effective_page_size, total, effective_page_size)
-    if not offsets:
-        return first_page
-
     # PostgREST caps page sizes at 1,000. Fetch the remaining pages concurrently
     # instead of serially paying a cross-region round trip for every page.
-    with ThreadPoolExecutor(max_workers=min(8, len(offsets))) as executor:
-        remaining_pages = executor.map(
-            lambda offset: fetch_page(offset, effective_page_size), offsets
-        )
-        rows = first_page.copy()
-        for page, _ in remaining_pages:
+    last_page: list[dict[str, Any]] = first_page
+    last_offset = 0
+    rows = first_page.copy()
+    if offsets:
+        with ThreadPoolExecutor(max_workers=min(8, len(offsets))) as executor:
+            remaining_pages = executor.map(
+                lambda offset: fetch_page(offset, effective_page_size), offsets
+            )
+        for offset, (page, _) in zip(offsets, remaining_pages):
             rows.extend(page)
+            last_page = page
+            last_offset = offset
+
+    # Planned counts avoid an exact COUNT scan for large filtered tables. If
+    # the estimate undershoots, keep paging while the final page was full.
+    while len(last_page) == effective_page_size:
+        page, _ = fetch_page(last_offset + effective_page_size, effective_page_size)
+        if not page:
+            break
+        rows.extend(page)
+        last_page = page
+        last_offset += effective_page_size
     return rows
