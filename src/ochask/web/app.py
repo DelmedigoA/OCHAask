@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -14,7 +15,7 @@ from starlette.concurrency import run_in_threadpool
 from starlette.middleware import Middleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.requests import Request
-from starlette.responses import FileResponse, JSONResponse, Response
+from starlette.responses import JSONResponse, Response
 from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 
@@ -81,12 +82,16 @@ async def index(request: Request) -> Response:
             {"error": "Chat UI is not built. Run npm run build in frontend/."},
             status_code=503,
         )
-    headers = None
+    content = target.read_bytes()
+    headers = {
+        "Cache-Control": "no-store",
+        "ETag": f'"{hashlib.sha256(content).hexdigest()}"',
+    }
     if request.url.path in {"/", "/corpus"}:
-        headers = {
-            "Link": '</api/corpus>; rel=preload; as=fetch; crossorigin=anonymous'
-        }
-    return FileResponse(target, headers=headers)
+        headers["Link"] = (
+            '</api/corpus>; rel=preload; as=fetch; crossorigin=anonymous'
+        )
+    return Response(content, media_type="text/html", headers=headers)
 
 
 def valid_origin(request: Request) -> bool:
