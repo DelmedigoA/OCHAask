@@ -5,8 +5,8 @@ import { useAgUiRuntime } from "@assistant-ui/react-ag-ui";
 import bearingWitnessMark from "@/assets/bearing-witness-mark.svg";
 import bearingWitnessDarkMark from "@/assets/bearing-witness-mark-dark.svg";
 import {
-  Files,
-  MessageCircleMore,
+  LibraryBig,
+  MessagesSquare,
   Moon,
   ScanSearch,
   Sun,
@@ -74,7 +74,9 @@ function ThemeToggle() {
 
   useEffect(() => {
     const stored = localStorage.getItem("ochask-theme");
-    const nextDark = stored === "dark";
+    const nextDark = stored
+      ? stored === "dark"
+      : window.matchMedia("(prefers-color-scheme: dark)").matches;
     document.documentElement.classList.toggle("dark", nextDark);
     setDark(nextDark);
   }, []);
@@ -96,9 +98,9 @@ function ThemeToggle() {
 function WorkspaceSidebar({ page, navigate }: { page: Page; navigate: (page: Page) => void }) {
   const { isMobile, setOpenMobile } = useSidebar();
   const items = [
-    { page: "corpus" as const, label: "Corpus", icon: Files },
-    { page: "search" as const, label: "Search", icon: ScanSearch },
-    { page: "chat" as const, label: "Chat", icon: MessageCircleMore },
+    { page: "corpus" as const, label: "Corpus", description: "Browse and inspect documents", icon: LibraryBig },
+    { page: "search" as const, label: "Explore", description: "Search and discover evidence", icon: ScanSearch },
+    { page: "chat" as const, label: "Research", description: "Investigate through conversation", icon: MessagesSquare },
   ];
 
   function openPage(nextPage: Page) {
@@ -125,7 +127,7 @@ function WorkspaceSidebar({ page, navigate }: { page: Page; navigate: (page: Pag
                 className="hidden size-9 shrink-0 object-contain dark:block"
               />
               <div className="flex min-w-0 flex-col gap-0.5 leading-none group-data-[collapsible=icon]:hidden">
-                <span className="font-display font-semibold tracking-tight">OCHAsk</span>
+                <span className="font-display font-semibold tracking-tight">Bearing Witness</span>
                 <span className="text-xs text-muted-foreground">Research workspace</span>
               </div>
             </div>
@@ -136,12 +138,12 @@ function WorkspaceSidebar({ page, navigate }: { page: Page; navigate: (page: Pag
       <SidebarContent className="gap-2 px-2 py-3">
         <nav aria-label="Workspace pages">
           <SidebarMenu>
-            {items.map(({ page: itemPage, label, icon: Icon }) => (
+            {items.map(({ page: itemPage, label, description, icon: Icon }) => (
               <SidebarMenuItem key={itemPage}>
                 <SidebarMenuButton
                   isActive={page === itemPage}
                   tooltip={label}
-                  className="h-10 px-3"
+                  className="h-auto min-h-14 px-3 py-2 group-data-[collapsible=icon]:min-h-0"
                   render={
                     <a
                       href={`/${itemPage}`}
@@ -155,7 +157,10 @@ function WorkspaceSidebar({ page, navigate }: { page: Page; navigate: (page: Pag
                   }
                 >
                   <Icon className="size-5" strokeWidth={1.75} aria-hidden="true" />
-                  <span>{label}</span>
+                  <span className="flex min-w-0 flex-col gap-0.5 group-data-[collapsible=icon]:hidden">
+                    <span>{label}</span>
+                    <span className="text-xs font-normal text-muted-foreground">{description}</span>
+                  </span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             ))}

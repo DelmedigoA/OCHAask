@@ -202,7 +202,7 @@ const ThreadRoot: FC<ThreadRootProps> = ({
     <ThreadPrimitive.Root
       className="aui-root aui-thread-root bg-background @container flex h-full min-w-0 w-full flex-1 flex-col"
       style={{
-        ["--thread-max-width" as string]: "40rem",
+        ["--thread-max-width" as string]: "47.3rem",
         ["--composer-bg" as string]:
           "var(--color-background)",
         ["--composer-radius" as string]: "1rem",
@@ -417,11 +417,11 @@ const ThreadScrollToBottom: FC = () => {
 
 const ThreadWelcome: FC = () => {
   return (
-    <div className="aui-thread-welcome-root mb-6 flex flex-col items-center px-2 text-center">
+    <div className="aui-thread-welcome-root mb-6 flex w-full flex-col items-center px-2 text-center">
       <p className="fade-in slide-in-from-bottom-1 animate-in fill-mode-both text-4xl font-semibold tracking-[-0.05em] duration-200 sm:text-5xl">
         OCHAsk
       </p>
-      <p className="aui-thread-welcome-message-inner mt-3 max-w-md text-sm leading-6 text-muted-foreground sm:text-base">
+      <p className="aui-thread-welcome-message-inner mx-auto mt-3 w-full max-w-md text-center text-sm leading-6 text-muted-foreground sm:text-base">
         Explore evidence across OCHA humanitarian reports.
       </p>
     </div>

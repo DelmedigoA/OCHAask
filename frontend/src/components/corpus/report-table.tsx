@@ -23,9 +23,6 @@ const columnHelper = createColumnHelper<typeof dataTableFeatures, CorpusReport>(
 
 function reportTitle(report: Pick<CorpusReport, "title">) {
   let title = report.title.replace(/^\s*oPt:\s*/i, "").trim();
-  const issueMatch = title.match(/(?:#|\bNo\.?)\s*(\d+)\b/i);
-  if (issueMatch) title = title.replace(issueMatch[0], "").replace(/\s{2,}/g, " ").trim();
-
   title = title.replace(/\s+\[(?:[A-Z]{2,3})(?:\/[A-Z]{2,3})*\]\s*$/i, "").trim();
   const dateSuffix = title.match(
     /\s*\|\s*(?:\d{1,2}\s+[A-Za-z]+\s*[-–]\s*)?\d{1,2}(?:\s*[-–]\s*\d{1,2})?\s+[A-Za-z]+\s+\d{4}$/i,
@@ -81,6 +78,7 @@ export function ReportTable({ reports }: { reports: CorpusReport[] }) {
     features: dataTableFeatures,
     data: reports,
     columns,
+    initialState: { pagination: { pageIndex: 0, pageSize: 20 } },
     onSortingChange: setSorting,
     state: { sorting },
   });

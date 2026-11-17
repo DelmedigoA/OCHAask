@@ -66,11 +66,12 @@ function pagesLabel(pages: number[]) {
 
 function ResultItem({ result, terms }: { result: SearchResult; terms: string[] }) {
   const date = publicationDate(result.publication_date);
+  const title = result.title.replace(/\s+\[(?:[A-Z]{2,3})(?:\/[A-Z]{2,3})*\]\s*$/i, "").trim() || result.title;
   return (
-    <article className="space-y-2.5 border-b py-5 first:pt-0 last:border-b-0" aria-label={`Search result: ${result.title}`}>
+    <article className="space-y-2.5 border-b py-5 first:pt-0 last:border-b-0" aria-label={`Search result: ${title}`}>
       <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1">
-        <a href={result.landing_url} target="_blank" rel="noreferrer" className="group max-w-4xl text-base font-semibold leading-6 tracking-tight hover:underline">
-          {result.title}<ArrowUpRight className="ml-1.5 inline size-3.5 text-muted-foreground transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+        <a href={result.landing_url} target="_blank" rel="noreferrer" className="group text-base font-semibold leading-6 tracking-tight hover:underline">
+          {title}<ArrowUpRight className="ml-1.5 inline size-3.5 text-muted-foreground transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
         </a>
       </div>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
@@ -78,7 +79,7 @@ function ResultItem({ result, terms }: { result: SearchResult; terms: string[] }
         <span>{pagesLabel(result.pages)}</span>
         <a href={result.landing_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 hover:text-foreground hover:underline">Open source<ArrowUpRight className="size-3" /></a>
       </div>
-      <p className="max-w-4xl whitespace-pre-line text-sm leading-6 text-foreground/85">{highlight(excerpt(result.content, terms), terms)}</p>
+      <p className="whitespace-pre-line text-sm leading-6 text-foreground/85">{highlight(excerpt(result.content, terms), terms)}</p>
     </article>
   );
 }
@@ -123,7 +124,7 @@ export function SearchPage() {
   const terms = queryTerms(submittedQuery);
 
   return (
-    <main className="mx-auto w-full max-w-4xl space-y-8 px-5 py-8 sm:px-8 sm:py-10">
+    <main className="mx-auto w-full max-w-6xl space-y-8 px-5 py-8 sm:px-8 sm:py-10">
       <header className="space-y-2">
         <p className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">OCHA report library</p>
         <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Semantic search</h1>
