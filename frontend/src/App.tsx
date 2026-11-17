@@ -167,7 +167,7 @@ function WorkspaceSidebar({ page, navigate }: { page: Page; navigate: (page: Pag
       </SidebarContent>
 
       <SidebarFooter className="border-t px-4 py-3 group-data-[collapsible=icon]:px-2">
-        <p className="text-xs text-muted-foreground group-data-[collapsible=icon]:sr-only">OCHA humanitarian reports</p>
+        <p className="text-xs text-muted-foreground group-data-[collapsible=icon]:sr-only">Bearing Witness Gaza</p>
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>
