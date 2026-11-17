@@ -51,7 +51,9 @@ function pageFromPath() {
 
 function savedChatEffort(): ChatEffort {
   const stored = localStorage.getItem("ochask-chat-effort");
-  return stored === "low" || stored === "high" ? stored : "medium";
+  return stored === "low" || stored === "high" || stored === "max"
+    ? stored
+    : "medium";
 }
 
 async function api<T>(url: string, init?: RequestInit): Promise<T> {

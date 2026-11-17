@@ -29,7 +29,7 @@ from ochask.web.workspace import (
 STATIC_DIR = Path(__file__).with_name("static")
 WORKSPACE_DIR = STATIC_DIR / "workspace"
 contexts: dict[str, SearchContext] = {}
-CHAT_EFFORTS = frozenset({"low", "medium", "high"})
+CHAT_EFFORTS = frozenset({"low", "medium", "high", "max"})
 
 
 async def index(_: Request) -> Response:
@@ -151,7 +151,7 @@ async def agui_chat(request: Request) -> Response:
     ).strip().lower()
     if effort not in CHAT_EFFORTS:
         return JSONResponse(
-            {"error": "Reasoning effort must be low, medium, or high"},
+            {"error": "Reasoning effort must be low, medium, high, or max"},
             status_code=400,
         )
     try:

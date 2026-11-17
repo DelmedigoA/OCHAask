@@ -8,6 +8,10 @@ import { ThreadFollowupSuggestions } from "@/components/assistant-ui/elements/fo
 import { Image } from "@/components/assistant-ui/elements/image";
 import { MarkdownText } from "@/components/assistant-ui/elements/markdown-text";
 import {
+  ReasoningEffort,
+  type EffortLevel,
+} from "@/components/assistant-ui/elements/reasoning-effort";
+import {
   Reasoning,
   ReasoningContent,
   ReasoningRoot,
@@ -157,7 +161,15 @@ const taskAwareGroupBy = (
     : path;
 };
 
-export type ChatEffort = "low" | "medium" | "high";
+export type ChatEffort = "low" | "medium" | "high" | "max";
+
+// The AG-UI adapter does not expose reasoning-token usage for a real meter.
+const REASONING_EFFORT_LEVELS = [
+  { key: "low", label: "Low", budget: 0 },
+  { key: "medium", label: "Medium", budget: 0 },
+  { key: "high", label: "High", budget: 0 },
+  { key: "max", label: "Max", budget: 0 },
+] as const satisfies readonly EffortLevel[];
 
 export type ThreadProps = {
   components?: ThreadComponents | undefined;
@@ -537,18 +549,16 @@ const ComposerAction: FC<{ effort: ChatEffort; onEffortChange: (effort: ChatEffo
   return (
     <div className="aui-composer-action-wrapper relative flex items-center justify-between gap-3 px-1 pb-1">
       <div className="flex items-center gap-2">
-        <label htmlFor="chat-reasoning-effort" className="text-xs text-muted-foreground">Effort</label>
-        <select
-          id="chat-reasoning-effort"
-          aria-label="Reasoning effort"
-          value={effort}
-          onChange={(event) => onEffortChange(event.target.value as ChatEffort)}
-          className="h-7 rounded-md border border-input bg-transparent px-2 text-xs text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <option value="low">Low</option>
-          <option value="medium">Medium</option>
-          <option value="high">High</option>
-        </select>
+        <span id="chat-reasoning-effort-label" className="text-xs text-muted-foreground">Effort</span>
+        <ReasoningEffort
+          levels={REASONING_EFFORT_LEVELS}
+          selectedKey={effort}
+          spent={0}
+          onSelect={(key) => onEffortChange(key as ChatEffort)}
+          role="group"
+          aria-labelledby="chat-reasoning-effort-label"
+          className="aui-composer-reasoning-effort w-auto max-w-none gap-0"
+        />
       </div>
       <div className="flex items-center gap-1.5">
         <AuiIf condition={(s) => s.thread.capabilities.dictation}>
