@@ -18,7 +18,6 @@ from starlette.responses import FileResponse, JSONResponse, Response
 from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 
-from ochask.chat import SearchContext, agent
 from ochask.config import Settings
 from ochask.corpus import corpus_overview, search_evidence
 from ochask.database import count_indexed_reports
@@ -75,14 +74,19 @@ class AccessLogMiddleware:
         log_request(scope, status, started, stream_completed)
 
 
-async def index(_: Request) -> Response:
+async def index(request: Request) -> Response:
     target = WORKSPACE_DIR / "index.html"
     if not target.exists():
         return JSONResponse(
             {"error": "Chat UI is not built. Run npm run build in frontend/."},
             status_code=503,
         )
-    return FileResponse(target)
+    headers = None
+    if request.url.path in {"/", "/corpus"}:
+        headers = {
+            "Link": '</api/corpus>; rel=preload; as=fetch; crossorigin=anonymous'
+        }
+    return FileResponse(target, headers=headers)
 
 
 def valid_origin(request: Request) -> bool:
@@ -123,7 +127,9 @@ async def corpus(request: Request) -> Response:
         )
     return JSONResponse(
         result,
-        headers={"Cache-Control": "public, max-age=0, s-maxage=30, stale-while-revalidate=60"},
+        headers={
+            "Cache-Control": "public, max-age=0, s-maxage=300, stale-while-revalidate=3600"
+        },
     )
 
 
@@ -200,6 +206,8 @@ async def agui_chat(request: Request) -> Response:
         return JSONResponse({"error": "Valid threadId required"}, status_code=400)
     except Exception:
         return JSONResponse({"error": "Invalid chat request"}, status_code=400)
+
+    from ochask.chat import SearchContext, agent
 
     from pydantic_ai.usage import UsageLimits
 
