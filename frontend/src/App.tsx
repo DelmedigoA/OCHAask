@@ -74,7 +74,7 @@ function ThemeToggle() {
 
   useEffect(() => {
     const stored = localStorage.getItem("ochask-theme");
-    const nextDark = stored ? stored === "dark" : window.matchMedia("(prefers-color-scheme: dark)").matches;
+    const nextDark = stored === "dark";
     document.documentElement.classList.toggle("dark", nextDark);
     setDark(nextDark);
   }, []);
