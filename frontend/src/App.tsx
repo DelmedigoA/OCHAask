@@ -113,7 +113,7 @@ function WorkspaceSidebar({ page, navigate }: { page: Page; navigate: (page: Pag
                 src={bearingWitnessMark}
                 alt=""
                 aria-hidden="true"
-                className="size-9 shrink-0 rounded-md border border-border/70 bg-[#f7f6f4] object-contain"
+                className="size-10 shrink-0 object-contain dark:drop-shadow-[0_0_1px_rgba(247,246,244,0.75)]"
               />
               <div className="flex min-w-0 flex-col gap-0.5 leading-none group-data-[collapsible=icon]:hidden">
                 <span className="font-display font-semibold tracking-tight">OCHAsk</span>
