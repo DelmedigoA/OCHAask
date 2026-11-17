@@ -47,6 +47,7 @@ import {
   ArrowUpIcon,
   AudioLinesIcon,
   CheckIcon,
+  ChevronDownIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   CopyIcon,
@@ -157,7 +158,7 @@ const taskAwareGroupBy = (
     : path;
 };
 
-export type ChatEffort = "low" | "medium" | "high";
+export type ChatEffort = "low" | "medium" | "high" | "max";
 
 export type ThreadProps = {
   components?: ThreadComponents | undefined;
@@ -536,21 +537,22 @@ const ComposerAction: FC<{ effort: ChatEffort; onEffortChange: (effort: ChatEffo
 
   return (
     <div className="aui-composer-action-wrapper relative flex items-center justify-between gap-3 px-1 pb-1">
-      <div className="flex items-center gap-2">
-        <label htmlFor="chat-reasoning-effort" className="text-xs text-muted-foreground">Effort</label>
-        <select
-          id="chat-reasoning-effort"
-          aria-label="Reasoning effort"
-          value={effort}
-          onChange={(event) => onEffortChange(event.target.value as ChatEffort)}
-          className="h-7 rounded-md border border-input bg-transparent px-2 text-xs text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <option value="low">Low</option>
-          <option value="medium">Medium</option>
-          <option value="high">High</option>
-        </select>
-      </div>
-      <div className="flex items-center gap-1.5">
+      <div className="ml-auto flex items-center gap-1.5">
+        <label className="relative inline-flex items-center">
+          <span className="sr-only">Reasoning effort</span>
+          <select
+            aria-label="Reasoning effort"
+            value={effort}
+            onChange={(event) => onEffortChange(event.target.value as ChatEffort)}
+            className="h-7 cursor-pointer appearance-none bg-transparent py-1 ps-2 pe-5 text-sm text-muted-foreground outline-none hover:text-foreground focus-visible:text-foreground"
+          >
+            <option value="low">Low</option>
+            <option value="medium">Medium</option>
+            <option value="high">High</option>
+            <option value="max">Max</option>
+          </select>
+          <ChevronDownIcon aria-hidden="true" className="pointer-events-none absolute end-1 size-3.5 text-muted-foreground" />
+        </label>
         <AuiIf condition={(s) => s.thread.capabilities.dictation}>
           <AuiIf condition={(s) => s.composer.dictation == null}>
             <ComposerPrimitive.Dictate render={<TooltipIconButton tooltip="Voice input" side="bottom" type="button" variant="ghost" size="icon" className="aui-composer-dictate text-muted-foreground hover:text-foreground size-7 rounded-full" aria-label="Start voice input" />}><MicIcon className="aui-composer-dictate-icon size-4" /></ComposerPrimitive.Dictate>
