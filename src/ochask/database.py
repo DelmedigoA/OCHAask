@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 import requests
@@ -113,16 +114,19 @@ def rest_rows(
         raise ValueError("page_size must be between 1 and 1000")
 
     endpoint = f"{url.rstrip('/')}/rest/v1/{table}"
-    rows: list[dict[str, Any]] = []
-    offset = 0
-    total: int | None = None
-    while total is None or offset < total:
+
+    def fetch_page(
+        offset: int,
+        range_size: int = page_size,
+        *,
+        exact_count: bool = False,
+    ) -> tuple[list[dict[str, Any]], int | None]:
         headers = {
             "apikey": key,
             "Range-Unit": "items",
-            "Range": f"{offset}-{offset + page_size - 1}",
+            "Range": f"{offset}-{offset + range_size - 1}",
         }
-        if total is None:
+        if exact_count:
             headers["Prefer"] = "count=exact"
         try:
             response = requests.get(
@@ -142,7 +146,8 @@ def rest_rows(
         if not isinstance(page, list):
             raise RuntimeError(f"Supabase {table} returned an unexpected response")
 
-        if total is None:
+        total = None
+        if exact_count:
             content_range = response.headers.get("content-range", "")
             try:
                 total_text = content_range.rsplit("/", 1)[1]
@@ -151,9 +156,23 @@ def rest_rows(
                 raise RuntimeError(f"Supabase {table} did not return an exact count") from exc
             if total is None:
                 raise RuntimeError(f"Supabase {table} did not return an exact count")
+        return page, total
 
-        rows.extend(page)
-        if not page:
-            break
-        offset += len(page)
+    first_page, total = fetch_page(0, exact_count=True)
+    if not first_page and total:
+        raise RuntimeError(f"Supabase {table} returned an empty page before its exact count")
+    effective_page_size = len(first_page)
+    offsets = range(effective_page_size, total, effective_page_size)
+    if not offsets:
+        return first_page
+
+    # PostgREST caps page sizes at 1,000. Fetch the remaining pages concurrently
+    # instead of serially paying a cross-region round trip for every page.
+    with ThreadPoolExecutor(max_workers=min(8, len(offsets))) as executor:
+        remaining_pages = executor.map(
+            lambda offset: fetch_page(offset, effective_page_size), offsets
+        )
+        rows = first_page.copy()
+        for page, _ in remaining_pages:
+            rows.extend(page)
     return rows
