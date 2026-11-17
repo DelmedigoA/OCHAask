@@ -9,7 +9,6 @@ import { ToolCall } from "@/components/assistant-ui/elements/tool-call";
 import { ToolFallback } from "@/components/assistant-ui/elements/tool-fallback.aui";
 
 type SearchReportToolCallProps = {
-  query?: string;
   argsText: string;
   result?: unknown;
   isError?: boolean;
@@ -56,7 +55,6 @@ export function SearchReportToolCallDisclosure(props: SearchReportToolCallProps)
     <ToolCall
       label="Searched reports"
       activeLabel="Searching reports"
-      query={props.query ?? ""}
       request={props.argsText}
       result={result}
       running={running}
@@ -67,10 +65,7 @@ export function SearchReportToolCallDisclosure(props: SearchReportToolCallProps)
   );
 }
 
-export const SearchReportToolCall: ToolCallMessagePartComponent<
-  { query?: string },
-  unknown
-> = (props) => {
+export const SearchReportToolCall: ToolCallMessagePartComponent = (props) => {
   if (
     props.toolName !== "search_report_evidence" ||
     props.status.type === "requires-action" ||
@@ -82,7 +77,6 @@ export const SearchReportToolCall: ToolCallMessagePartComponent<
 
   return (
     <SearchReportToolCallDisclosure
-      query={typeof props.args?.query === "string" ? props.args.query : ""}
       argsText={props.argsText}
       result={props.result}
       isError={props.isError}

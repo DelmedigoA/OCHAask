@@ -36,4 +36,5 @@ dev = [
 where = ["src"]
 
 [tool.setuptools.package-data]
+ochask = ["prompts/*.md"]
 "ochask.web" = ["static/*.html", "static/*.css", "static/*.js", "static/*.svg", "static/package.json", "static/vendor/pdfjs/*.mjs", "static/vendor/pdfjs/LICENSE", "static/vendor/marked/*.js", "static/vendor/marked/LICENSE", "static/workspace/*", "static/workspace/assets/*"]

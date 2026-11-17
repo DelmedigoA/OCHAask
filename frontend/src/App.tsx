@@ -1,4 +1,4 @@
-import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from "react";
 import { HttpAgent } from "@ag-ui/client";
 import { AssistantRuntimeProvider, useAuiState } from "@assistant-ui/react";
 import { useAgUiRuntime } from "@assistant-ui/react-ag-ui";
@@ -28,7 +28,6 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import type { ChatEffort } from "@/components/assistant-ui/elements/thread.aui";
 
 type Page = "corpus" | "search" | "chat";
 type Conversation = { id: string; title: string; created_at: string; updated_at: string };
@@ -48,13 +47,6 @@ function pageFromPath() {
   if (pathname === "/chat") return "chat" as const;
   if (pathname !== "/corpus") window.history.replaceState(null, "", "/corpus");
   return "corpus" as const;
-}
-
-function savedChatEffort(): ChatEffort {
-  const stored = localStorage.getItem("ochask-chat-effort");
-  return stored === "low" || stored === "high" || stored === "max"
-    ? stored
-    : "medium";
 }
 
 async function api<T>(url: string, init?: RequestInit): Promise<T> {
@@ -235,14 +227,7 @@ function WorkspaceLayout({
 function ChatWorkspace({ page, navigate }: { page: Page; navigate: (page: Page) => void }) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [currentId, setCurrentId] = useState<string>(() => crypto.randomUUID());
-  const [effort, setEffort] = useState<ChatEffort>(savedChatEffort);
-  const effortRef = useRef(effort);
-  effortRef.current = effort;
   const [chatMounted, setChatMounted] = useState(page === "chat");
-  const updateEffort = useCallback((nextEffort: ChatEffort) => {
-    setEffort(nextEffort);
-    localStorage.setItem("ochask-chat-effort", nextEffort);
-  }, []);
   const reloadConversations = useCallback(() => {
     void api<{ conversations: Conversation[] }>("/api/conversations")
       .then((data) => setConversations(data.conversations))
@@ -264,11 +249,6 @@ function ChatWorkspace({ page, navigate }: { page: Page; navigate: (page: Page) 
     () => new HttpAgent({
       url: "/api/chat",
       threadId: currentId,
-      fetch: (url, init) => {
-        const headers = new Headers(init.headers);
-        headers.set("X-OCHAsk-Reasoning-Effort", effortRef.current);
-        return window.fetch(url, { ...init, headers });
-      },
     }),
     [currentId],
   );
@@ -314,7 +294,7 @@ function ChatWorkspace({ page, navigate }: { page: Page; navigate: (page: Page) 
         {page === "corpus" && <div className="flex-1 overflow-y-auto"><Suspense fallback={<PageLoading />}><CorpusPage /></Suspense></div>}
         {page === "search" && <div className="flex-1 overflow-y-auto"><Suspense fallback={<PageLoading />}><SearchPage /></Suspense></div>}
         {chatMounted && <div className={page === "chat" ? "flex min-h-0 flex-1 overflow-hidden" : "hidden"} aria-hidden={page !== "chat"}>
-          <Suspense fallback={<PageLoading />}><Thread autoFocus={false} effort={effort} onEffortChange={updateEffort} /></Suspense>
+          <Suspense fallback={<PageLoading />}><Thread autoFocus={false} /></Suspense>
         </div>}
       </WorkspaceLayout>
     </AssistantRuntimeProvider>

@@ -80,9 +80,8 @@ value is missing.
 Search calls the same `search_reports` helper used by the PydanticAI agent and
 keeps the existing hybrid retrieval order. Chat streams through assistant-ui's
 AG-UI runtime, keeps local conversation history, renders Markdown, and supports
-the agent's report search tool and source citations. The Chat composer exposes
-Low, Medium, and High reasoning effort, with Medium as the default. Chart, map,
-and generative UI rendering are disabled in Chat.
+the agent's report search tool. The agent uses the default model settings and
+cites evidence with Markdown links to reports, page numbers, and short quotes.
 
 Set `OPENAI_CHAT_MODEL` in `.env` (for example, `openai:gpt-6-luna`) and build
 the chat UI:
@@ -100,4 +99,4 @@ Then start the local-only server:
 uv run uvicorn ochask.web.app:app --host 127.0.0.1 --port 8000
 ```
 
-Open [http://127.0.0.1:8000/corpus](http://127.0.0.1:8000/corpus). The other pages are at `/search` and `/chat`. The PydanticAI agent searches up to 30 chunks per call by default; set `OCHASK_CHAT_SEARCH_LIMIT` to change that limit. Chat and semantic search make OpenAI API requests. Supabase credentials remain on the local backend and are never sent to the browser. The assistant-ui components are MIT licensed; see [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
+Open [http://127.0.0.1:8000/corpus](http://127.0.0.1:8000/corpus). The other pages are at `/search` and `/chat`. The Pydantic AI agent searches up to 30 chunks per tool call. Chat and semantic search make OpenAI API requests. Supabase credentials remain on the local backend and are never sent to the browser. The assistant-ui components are MIT licensed; see [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).

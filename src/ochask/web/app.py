@@ -29,7 +29,6 @@ from ochask.web.workspace import (
 STATIC_DIR = Path(__file__).with_name("static")
 WORKSPACE_DIR = STATIC_DIR / "workspace"
 contexts: dict[str, SearchContext] = {}
-CHAT_EFFORTS = frozenset({"low", "medium", "high", "max"})
 
 
 async def index(_: Request) -> Response:
@@ -146,14 +145,6 @@ async def load_conversation(request: Request) -> Response:
 async def agui_chat(request: Request) -> Response:
     if not valid_origin(request):
         return JSONResponse({"error": "Invalid origin"}, status_code=403)
-    effort = request.headers.get(
-        "x-ochask-reasoning-effort", "medium"
-    ).strip().lower()
-    if effort not in CHAT_EFFORTS:
-        return JSONResponse(
-            {"error": "Reasoning effort must be low, medium, high, or max"},
-            status_code=400,
-        )
     try:
         payload = await request.json()
         conversation_id = str(UUID(payload.get("threadId", "")))
@@ -168,7 +159,6 @@ async def agui_chat(request: Request) -> Response:
         deps=contexts.setdefault(conversation_id, SearchContext()),
         conversation_id=conversation_id,
         manage_message_history="client",
-        model_settings={"openai_reasoning_effort": effort},
     )
 
 
