@@ -3,6 +3,7 @@ import { HttpAgent } from "@ag-ui/client";
 import { AssistantRuntimeProvider, useAuiState } from "@assistant-ui/react";
 import { useAgUiRuntime } from "@assistant-ui/react-ag-ui";
 import bearingWitnessMark from "@/assets/bearing-witness-mark.svg";
+import bearingWitnessDarkMark from "@/assets/bearing-witness-mark-dark.svg";
 import {
   Files,
   MessageCircleMore,
@@ -115,7 +116,13 @@ function WorkspaceSidebar({ page, navigate }: { page: Page; navigate: (page: Pag
                 src={bearingWitnessMark}
                 alt=""
                 aria-hidden="true"
-                className="size-9 shrink-0 object-contain"
+                className="size-9 shrink-0 object-contain dark:hidden"
+              />
+              <img
+                src={bearingWitnessDarkMark}
+                alt=""
+                aria-hidden="true"
+                className="hidden size-9 shrink-0 object-contain dark:block"
               />
               <div className="flex min-w-0 flex-col gap-0.5 leading-none group-data-[collapsible=icon]:hidden">
                 <span className="font-display font-semibold tracking-tight">OCHAsk</span>
