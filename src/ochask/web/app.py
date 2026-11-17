@@ -121,7 +121,10 @@ async def corpus(request: Request) -> Response:
             {"error": "The indexed corpus is temporarily unavailable"},
             status_code=503,
         )
-    return JSONResponse(result)
+    return JSONResponse(
+        result,
+        headers={"Cache-Control": "public, max-age=0, s-maxage=30, stale-while-revalidate=60"},
+    )
 
 
 async def search_reports(request: Request) -> Response:

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import Counter, defaultdict
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
@@ -53,16 +54,35 @@ def _all_months(
 
 def corpus_overview(settings: Settings) -> dict[str, Any]:
     """Aggregate indexed chunks without treating chunk tokens as unique document tokens."""
-    chunks = rest_rows(
-        settings.supabase_url,
-        settings.supabase_secret_key,
-        "report_embeddings",
-        select="report_id,token_count",
-        filters={
-            "embedding_model": f"eq.{settings.embedding_model}",
-            "chunk_id": "not.is.null",
-        },
-    )
+    with ThreadPoolExecutor(max_workers=3) as executor:
+        chunks_future = executor.submit(
+            rest_rows,
+            settings.supabase_url,
+            settings.supabase_secret_key,
+            "report_embeddings",
+            select="report_id,token_count",
+            filters={
+                "embedding_model": f"eq.{settings.embedding_model}",
+                "chunk_id": "not.is.null",
+            },
+        )
+        reports_future = executor.submit(
+            rest_rows,
+            settings.supabase_url,
+            settings.supabase_secret_key,
+            "report_landings",
+            select="id,title,posted,originally_published,landing_url,origin_url",
+        )
+        attachments_future = executor.submit(
+            rest_rows,
+            settings.supabase_url,
+            settings.supabase_secret_key,
+            "report_attachments",
+            select="report_id,filename,url,file_type,language",
+        )
+        chunks = chunks_future.result()
+        report_rows = reports_future.result()
+        attachments = attachments_future.result()
 
     per_report: dict[str, dict[str, Any]] = defaultdict(
         lambda: {"chunk_tokens": 0, "token_count_complete": True}
@@ -89,12 +109,6 @@ def corpus_overview(settings: Settings) -> dict[str, Any]:
             "reports": [],
         }
 
-    report_rows = rest_rows(
-        settings.supabase_url,
-        settings.supabase_secret_key,
-        "report_landings",
-        select="id,title,posted,originally_published,landing_url,origin_url",
-    )
     reports_by_id = {
         row["id"]: row
         for row in report_rows
@@ -104,12 +118,6 @@ def corpus_overview(settings: Settings) -> dict[str, Any]:
     if missing_report_ids:
         raise RuntimeError("Indexed chunks are missing report metadata")
 
-    attachments = rest_rows(
-        settings.supabase_url,
-        settings.supabase_secret_key,
-        "report_attachments",
-        select="report_id,filename,url,file_type,language",
-    )
     pdfs: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for attachment in attachments:
         report_id = attachment.get("report_id")
