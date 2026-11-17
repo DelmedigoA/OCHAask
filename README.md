@@ -68,20 +68,36 @@ for hit in results:
 
 Search embeds the query once and fuses pgvector cosine similarity and English PostgreSQL full-text rankings using weighted reciprocal rank fusion (k=60). Each candidate list contains up to ten times the requested result count. Weights are non-negative and at least one must be positive; the default weights are equal. Search requires the same server-side credentials and returns source chunks, not generated answers. Existing rows without new chunk IDs are excluded until their reports are reindexed.
 
-## Chat with indexed reports
+## OCHAsk research workspace
 
-Set `OPENAI_CHAT_MODEL` in `.env` (for example, `openai:gpt-6-luna`) and run:
+The local workspace has three pages: **Corpus**, **Search**, and **Chat**.
+Corpus reads report metadata and indexed chunk records from Supabase. Its token
+total sums stored chunk token counts, including overlap; a deduplicated
+document-token total is not stored. The monthly chart uses each report's
+original publication date, falling back to its OCHA posted date when that
+value is missing.
+
+Search calls the same `search_reports` helper used by the PydanticAI agent and
+keeps the existing hybrid retrieval order. Chat streams through assistant-ui's
+AG-UI runtime, keeps local conversation history, renders Markdown, and supports
+the agent's report search tool and source citations. The Chat composer exposes
+Low, Medium, and High reasoning effort, with Medium as the default. Chart, map,
+and generative UI rendering are disabled in Chat.
+
+Set `OPENAI_CHAT_MODEL` in `.env` (for example, `openai:gpt-6-luna`) and build
+the chat UI:
+
+```sh
+cd frontend
+npm ci
+npm run build
+cd ..
+```
+
+Then start the local-only server:
 
 ```sh
 uv run uvicorn ochask.web.app:app --host 127.0.0.1 --port 8000
 ```
 
-Open [http://127.0.0.1:8000](http://127.0.0.1:8000). The Pydantic AI chat searches the indexed reports and can use up to 30 chunks per search. Click a citation to open its PDF page and highlight matching evidence. It uses only the reports currently indexed in Supabase. Chat and search make OpenAI API requests. The ArchiveLens-inspired interface is intended for local development. PDFs are stored in the private Supabase `pdfs` bucket.
-
-To add another already-indexed report's local PDF to the viewer, set `SUPABASE_PDF_BUCKET` (default: `pdfs`) and run:
-
-```sh
-uv run python -c 'from pathlib import Path; from ochask.config import Settings; from ochask.storage import upload_pdf; upload_pdf(Path("data/pdfs/<report-uuid>_report.pdf"), Settings.from_environment())'
-```
-
-Uploads use a content-derived object name and verify the downloaded file before linking it to its report. The bucket remains private; the local server retrieves PDFs without exposing its secret key. The viewer opens a cited page even when its text layer cannot match the quoted passage.
+Open [http://127.0.0.1:8000/corpus](http://127.0.0.1:8000/corpus). The other pages are at `/search` and `/chat`. The PydanticAI agent searches up to 30 chunks per call by default; set `OCHASK_CHAT_SEARCH_LIMIT` to change that limit. Chat and semantic search make OpenAI API requests. Supabase credentials remain on the local backend and are never sent to the browser. The assistant-ui components are MIT licensed; see [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).

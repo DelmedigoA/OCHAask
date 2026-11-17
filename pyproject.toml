@@ -22,7 +22,8 @@ dependencies = [
     "pymupdf>=2.1",
     "requests>=2.34.2",
     "tiktoken>=0.14.0",
-    "pydantic-ai-slim[openai,web]>=2.28.0",
+    "pydantic-ai-slim[ag-ui,openai,web]>=2.68.0",
+    "uvicorn>=0.34",
 ]
 
 [dependency-groups]
@@ -35,4 +36,4 @@ dev = [
 where = ["src"]
 
 [tool.setuptools.package-data]
-"ochask.web" = ["static/*.html", "static/*.css", "static/*.js", "static/package.json", "static/vendor/pdfjs/*.mjs", "static/vendor/pdfjs/LICENSE", "static/vendor/marked/*.js", "static/vendor/marked/LICENSE"]
+"ochask.web" = ["static/*.html", "static/*.css", "static/*.js", "static/*.svg", "static/package.json", "static/vendor/pdfjs/*.mjs", "static/vendor/pdfjs/LICENSE", "static/vendor/marked/*.js", "static/vendor/marked/LICENSE", "static/workspace/*", "static/workspace/assets/*"]

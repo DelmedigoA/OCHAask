@@ -17,6 +17,7 @@ class Settings:
     supabase_secret_key: str
     embedding_model: str
     pdf_bucket: str = "pdfs"
+    workspace_db_path: str = "data/ochask-workspace.sqlite3"
 
     @classmethod
     def from_environment(cls) -> Settings:
@@ -51,4 +52,8 @@ class Settings:
             supabase_secret_key=secret,
             embedding_model=values["OPENAI_EMBEDDING_MODEL"],
             pdf_bucket=os.getenv("SUPABASE_PDF_BUCKET", "pdfs").strip() or "pdfs",
+            workspace_db_path=os.getenv(
+                "OCHASK_WORKSPACE_DB_PATH", "data/ochask-workspace.sqlite3"
+            ).strip()
+            or "data/ochask-workspace.sqlite3",
         )
