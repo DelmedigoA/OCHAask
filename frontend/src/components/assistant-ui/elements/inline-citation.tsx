@@ -58,7 +58,7 @@ export function Citation({
         render={<button type="button" {...props} />}
         aria-label={`Source ${index + 1}: ${source.title}`}
         className={cn(
-          "bg-foreground/[0.06] text-muted-foreground hover:text-foreground/90 data-[popup-open]:bg-foreground data-[popup-open]:text-background ms-0.5 inline-flex h-4 min-w-4 translate-y-[-2px] cursor-pointer items-center justify-center rounded-[5px] px-1 align-middle font-mono text-[10px] font-medium tabular-nums transition-colors motion-reduce:transition-none",
+          "bg-[#F9ECEB] text-[#9A3030] hover:text-[#7D2626] data-[popup-open]:bg-[#9A3030] data-[popup-open]:text-white dark:bg-[#482629] dark:text-[#F4B8B5] dark:hover:text-[#FFD5D2] dark:data-[popup-open]:bg-[#F4B8B5] dark:data-[popup-open]:text-[#482629] ms-0.5 inline-flex h-4 min-w-4 translate-y-[-2px] cursor-pointer items-center justify-center rounded-[5px] px-1 align-middle font-mono text-[10px] font-medium tabular-nums transition-colors motion-reduce:transition-none",
           className,
         )}
       >
