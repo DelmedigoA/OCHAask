@@ -16,8 +16,8 @@ from .database import rest_rows, rpc
 from .embeddings import embed_texts
 
 
-class SearchResult(TypedDict):
-    """A ranked source chunk and the metadata needed to cite it."""
+class SourceChunk(TypedDict):
+    """An indexed chunk and the metadata needed to cite it."""
 
     chunk_id: str
     report_id: str
@@ -25,6 +25,11 @@ class SearchResult(TypedDict):
     landing_url: str
     pages: list[int]
     content: str
+
+
+class SearchResult(SourceChunk):
+    """A source chunk ranked by reciprocal rank fusion."""
+
     fusion_score: float
 
 
@@ -56,12 +61,32 @@ def search(
     vector = embed_texts(OpenAI(), [query.strip()], settings.embedding_model)[0]
     if date_from is not None or date_to is not None or issue is not None or report_title:
         return _filtered_search(settings, query, vector, limit, date_from, date_to, issue, report_title, semantic_weight, keyword_weight)
+    return _search_unfiltered(settings, query.strip(), vector, limit, semantic_weight, keyword_weight)
+
+
+def _search_unfiltered(settings, query, vector, limit, semantic_weight, keyword_weight):
+    if settings.bm25_index_path and keyword_weight > 0:
+        from .bm25 import fuse, load_index
+
+        # The RPC returns at most 100 rows, even when its internal candidate pool is larger.
+        candidate_limit = min(limit * 10, 100)
+        keywords = load_index(settings).search(query, candidate_limit)
+        semantic = (
+            _rpc_search(settings, query, vector, candidate_limit, semantic_weight, 0)
+            if semantic_weight > 0
+            else []
+        )
+        return fuse(semantic, keywords, limit, semantic_weight, keyword_weight)
+    return _rpc_search(settings, query, vector, limit, semantic_weight, keyword_weight)
+
+
+def _rpc_search(settings, query, vector, limit, semantic_weight, keyword_weight):
     return rpc(
         settings.supabase_url,
         settings.supabase_secret_key,
         "hybrid_search_report_chunks",
         {
-            "query_text": query.strip(),
+            "query_text": query,
             "query_embedding": vector,
             "model_name": settings.embedding_model,
             "match_count": limit,

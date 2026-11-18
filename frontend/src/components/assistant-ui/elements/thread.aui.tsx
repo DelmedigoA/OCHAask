@@ -3,11 +3,13 @@
 import {
   UserMessageAttachments,
 } from "@/components/assistant-ui/elements/attachment.aui";
+import { AnswerEvidence, AnswerMarkdown } from "@/components/assistant-ui/elements/answer-markdown";
+import { ChatComposerControls } from "@/components/assistant-ui/elements/chat-composer-controls";
+import { ComposerActions, ComposerBar, ComposerToolbar } from "@/components/assistant-ui/elements/composer";
 import { File, getFileHref } from "@/components/assistant-ui/elements/file";
 import { ThreadFollowupSuggestions } from "@/components/assistant-ui/elements/follow-up-suggestions.aui";
 import { GeoMapToolCall } from "@/components/assistant-ui/elements/geo-map-tool-call";
 import { Image } from "@/components/assistant-ui/elements/image";
-import { MarkdownText } from "@/components/assistant-ui/elements/markdown-text";
 import {
   Reasoning,
   ReasoningContent,
@@ -15,11 +17,13 @@ import {
   ReasoningText,
   ReasoningTrigger,
 } from "@/components/assistant-ui/elements/reasoning.aui";
-import { SearchReportToolCall } from "@/components/assistant-ui/elements/search-report-tool-call";
+import { ThinkingIndicator } from "@/components/assistant-ui/elements/thinking-indicator";
+import { ToolFallback } from "@/components/assistant-ui/elements/tool-fallback.aui";
 import { TooltipIconButton } from "@/components/assistant-ui/elements/tooltip-icon-button";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { useChatRunSettings } from "@/lib/chat-run-settings";
 import {
   ActionBarPrimitive,
   AuiIf,
@@ -41,8 +45,10 @@ import {
   ArrowDownIcon,
   ArrowUpIcon,
   AudioLinesIcon,
+  CheckIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
+  CopyIcon,
   MicIcon,
   PencilIcon,
   PhoneIcon,
@@ -55,8 +61,10 @@ import {
 import {
   createContext,
   useContext,
+  useEffect,
   useLayoutEffect,
   useRef,
+  useState,
   type ComponentType,
   type FC,
   type PropsWithChildren,
@@ -100,11 +108,95 @@ const defaultMessageGroupBy = groupPartByType({
   "standalone-tool-call": [],
 });
 
-const isLocationLookup = (part: Parameters<typeof defaultMessageGroupBy>[0]) =>
-  part.type === "tool-call" && part.toolName === "search_location";
+type MessagePart = Parameters<typeof defaultMessageGroupBy>[0];
+type ToolPart = Extract<MessagePart, { type: "tool-call" }>;
+
+const needsToolInput = (part: ToolPart) =>
+  part.status.type === "requires-action" || part.approval != null || part.interrupt != null;
+
+function isHiddenToolCall(
+  part: MessagePart,
+  toolUIs: AssistantState["tools"]["toolUIs"] | undefined,
+  showTasks = false,
+) {
+  if (part.type !== "tool-call") return false;
+  if (part.toolName === "search_location") return true;
+  return !needsToolInput(part) &&
+    (part.toolName !== "show_geo_map" || part.status.type === "running") &&
+    !(showTasks && part.messages !== undefined) &&
+    !part.mcp?.app?.resourceUri &&
+    !toolUIs?.[part.toolName]?.length;
+}
+
+const toolProgressLabels = new Map([
+  ["search_report_evidence", "Searching OCHA reports"],
+  ["search_archive", "Searching the archive"],
+  ["lookup_url", "Checking the archive"],
+  ["request_archiving", "Requesting archiving"],
+  ["show_geo_map", "Preparing interactive map"],
+]);
+
+const toolProgressLabel = (toolName: string) => {
+  const normalizedName = toolName.toLowerCase();
+  for (const [name, label] of toolProgressLabels) {
+    if (normalizedName === name || normalizedName.endsWith(`_${name}`)) {
+      return label;
+    }
+  }
+  return undefined;
+};
+
+function thinkingLabel(s: AssistantState) {
+  if (!s.thread.isRunning) return undefined;
+  let hasPendingTool = false;
+  for (const part of s.message.parts) {
+    if (part.type !== "tool-call" || part.status.type !== "running") continue;
+    hasPendingTool = true;
+    const label = toolProgressLabel(part.toolName);
+    if (label) return label;
+  }
+  if (s.message.status?.type !== "running") return undefined;
+  const hasText = s.message.parts.some((part) => part.type === "text" && part.text.trim());
+  return hasPendingTool || !hasText ? "Thinking" : undefined;
+}
+
+const MIN_PROGRESS_LABEL_MS = 700;
+
+function useVisibleThinkingLabel(label: string | undefined) {
+  const [visibleLabel, setVisibleLabel] = useState(label);
+  const lastProgress = useRef<{ label: string; startedAt: number } | undefined>(undefined);
+
+  useEffect(() => {
+    if (label && label !== "Thinking") {
+      if (lastProgress.current?.label !== label) {
+        lastProgress.current = { label, startedAt: Date.now() };
+      }
+      setVisibleLabel(label);
+      return;
+    }
+
+    const previous = lastProgress.current;
+    if (previous) {
+      const remaining = MIN_PROGRESS_LABEL_MS - (Date.now() - previous.startedAt);
+      if (remaining > 0) {
+        setVisibleLabel(previous.label);
+        const timeout = window.setTimeout(() => {
+          lastProgress.current = undefined;
+          setVisibleLabel(label);
+        }, remaining);
+        return () => window.clearTimeout(timeout);
+      }
+    }
+
+    lastProgress.current = undefined;
+    setVisibleLabel(label);
+  }, [label]);
+
+  return visibleLabel;
+}
 
 const messageGroupBy: typeof defaultMessageGroupBy = (part, context) =>
-  isLocationLookup(part) ? [] : defaultMessageGroupBy(part, context);
+  isHiddenToolCall(part, context?.toolUIs) ? [] : defaultMessageGroupBy(part, context);
 
 type ThreadGroupKey =
   | "group-chainOfThought"
@@ -121,7 +213,8 @@ const taskAwareGroupBy = (
   part: Parameters<typeof messageGroupBy>[0],
   context?: Parameters<typeof messageGroupBy>[1],
 ): readonly ThreadGroupKey[] => {
-  const path = messageGroupBy(part, context);
+  if (isHiddenToolCall(part, context?.toolUIs, true)) return [];
+  const path = defaultMessageGroupBy(part, context);
   return part.type === "tool-call" &&
     part.messages !== undefined &&
     path.length > 0 &&
@@ -197,6 +290,7 @@ const ThreadRoot: FC<ThreadRootProps> = ({
   autoFocus,
 }) => {
   const { Welcome = ThreadWelcome } = useContext(ThreadComponentsContext);
+  const { canSend } = useChatRunSettings();
 
   return (
     <ThreadPrimitive.Root
@@ -246,9 +340,9 @@ const ThreadRoot: FC<ThreadRootProps> = ({
             )}
           >
             <ThreadScrollToBottom />
-            <ThreadFollowupSuggestions />
+            {canSend && <ThreadFollowupSuggestions />}
             <Composer autoFocus={autoFocus} />
-            <AuiIf condition={(s) => isNewChatView(s) && s.composer.isEmpty}>
+            <AuiIf condition={(s) => canSend && isNewChatView(s) && s.composer.isEmpty}>
               <ThreadSuggestions />
             </AuiIf>
           </ThreadPrimitive.ViewportFooter>
@@ -346,6 +440,9 @@ const SpokenMessage: FC = () => {
           )}
         </div>
       </div>
+      <ActionBarPrimitive.Root hideWhenRunning autohide="not-last" className="mt-1">
+        <CopyMessage />
+      </ActionBarPrimitive.Root>
     </MessagePrimitive.Root>
   );
 };
@@ -422,7 +519,7 @@ const ThreadWelcome: FC = () => {
         OCHAsk
       </p>
       <p className="aui-thread-welcome-message-inner mx-auto mt-3 w-full max-w-md text-center text-sm leading-6 text-muted-foreground sm:text-base">
-        Explore evidence across OCHA humanitarian reports.
+        Explore evidence across OCHA humanitarian reports and the Bearing Witness archive.
       </p>
     </div>
   );
@@ -457,22 +554,45 @@ const ThreadSuggestionItem: FC = () => {
 type ComposerProps = Pick<ThreadRootProps, "autoFocus">;
 
 const Composer: FC<ComposerProps> = ({ autoFocus }) => {
+  const { canSend, sources, configError, model, retryConfig } = useChatRunSettings();
+  const noSources = !sources.archive && !sources.ocha;
+
   return (
-    <ComposerPrimitive.Root className="aui-composer-root relative flex w-full flex-col rounded-2xl border border-input bg-background p-2 transition-colors focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/20">
-      <ComposerPrimitive.Input
-        placeholder="Ask a question about the OCHA reports…"
-        className="aui-composer-input max-h-48 min-h-20 w-full resize-none bg-transparent px-3 pt-2 text-base leading-6 outline-none placeholder:text-muted-foreground/60"
-        rows={2}
-        autoFocus={autoFocus}
-        enterKeyHint="send"
-        aria-label="Message input"
-      />
-      <ComposerAction />
+    <ComposerPrimitive.Root
+      data-slot="composer"
+      className="aui-composer-root relative w-full"
+      onSubmit={(event) => { if (!canSend) event.preventDefault(); }}
+    >
+      <ComposerBar className="gap-1 rounded-2xl border border-input bg-background p-2 focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/20">
+        <ComposerPrimitive.Input
+          placeholder="Ask a question about OCHA reports or the archive…"
+          className="aui-composer-input max-h-48 min-h-20 w-full resize-none bg-transparent px-3 pt-2 text-base leading-6 outline-none placeholder:text-muted-foreground/60"
+          rows={2}
+          autoFocus={autoFocus}
+          submitMode={canSend ? "enter" : "none"}
+          enterKeyHint={canSend ? "send" : undefined}
+          aria-label="Message input"
+          aria-describedby={noSources ? "ochask-composer-source-help" : undefined}
+        />
+        <ComposerAction />
+        {noSources && (
+          <p id="ochask-composer-source-help" className="px-2 text-xs text-muted-foreground" role="status">
+            Enable Archive or OCHA to send.
+          </p>
+        )}
+        {configError ? (
+          <div className="flex flex-wrap items-center gap-2 px-2 text-xs text-muted-foreground">
+            <span role="status">Chat settings could not load.</span>
+            <Button type="button" size="xs" variant="ghost" onClick={retryConfig}>Retry</Button>
+          </div>
+        ) : (!model && <p role="status" className="px-2 text-xs text-muted-foreground">Loading chat settings…</p>)}
+      </ComposerBar>
     </ComposerPrimitive.Root>
   );
 };
 
 const ComposerAction: FC = () => {
+  const { canSend } = useChatRunSettings();
   // The stop control only cancels the send while no run it could stop is going.
   const isSending = useAuiState(
     (s) =>
@@ -481,8 +601,9 @@ const ComposerAction: FC = () => {
   );
 
   return (
-    <div className="aui-composer-action-wrapper relative flex items-center justify-between gap-3 px-1 pb-1">
-      <div className="ml-auto flex items-center gap-1.5">
+    <ComposerToolbar className="aui-composer-action-wrapper relative mt-3 gap-2 px-1 pb-1">
+      <ChatComposerControls />
+      <ComposerActions className="ms-auto shrink-0 self-end">
         <AuiIf condition={(s) => s.thread.capabilities.dictation}>
           <AuiIf condition={(s) => s.composer.dictation == null}>
             <ComposerPrimitive.Dictate render={<TooltipIconButton tooltip="Voice input" side="bottom" type="button" variant="ghost" size="icon" className="aui-composer-dictate text-muted-foreground hover:text-foreground size-7 rounded-full" aria-label="Start voice input" />}><MicIcon className="aui-composer-dictate-icon size-4" /></ComposerPrimitive.Dictate>
@@ -499,10 +620,10 @@ const ComposerAction: FC = () => {
             !shouldShowComposerResume(s)
           }
         >
-          <ComposerPrimitive.Send render={<TooltipIconButton tooltip="Send message" side="bottom" type="button" variant="default" size="icon" className="aui-composer-send size-7 rounded-full" aria-label="Send message" />}><ArrowUpIcon className="aui-composer-send-icon size-4" /></ComposerPrimitive.Send>
+          <ComposerPrimitive.Send disabled={!canSend} render={<TooltipIconButton tooltip="Send message" side="bottom" type="button" variant="default" size="icon" className="aui-composer-send size-7 rounded-full" aria-label="Send message" />}><ArrowUpIcon className="aui-composer-send-icon size-4" /></ComposerPrimitive.Send>
         </AuiIf>
         <AuiIf condition={shouldShowComposerResume}>
-          <ComposerPrimitive.Resume render={<TooltipIconButton tooltip="Resume generating" side="bottom" type="button" variant="default" size="icon" className="aui-composer-resume size-7 rounded-full" aria-label="Resume generating" />}><PlayIcon className="aui-composer-resume-icon size-4" /></ComposerPrimitive.Resume>
+          <ComposerPrimitive.Resume disabled={!canSend} render={<TooltipIconButton tooltip="Resume generating" side="bottom" type="button" variant="default" size="icon" className="aui-composer-resume size-7 rounded-full" aria-label="Resume generating" />}><PlayIcon className="aui-composer-resume-icon size-4" /></ComposerPrimitive.Resume>
         </AuiIf>
         <AuiIf
           condition={(s) =>
@@ -513,19 +634,20 @@ const ComposerAction: FC = () => {
         >
           <ComposerPrimitive.Cancel render={<Button type="button" variant="default" size="icon" className="aui-composer-cancel size-7 rounded-full" aria-label={isSending ? "Cancel sending" : "Stop generating"} />}><SquareIcon className="aui-composer-cancel-icon size-3.5 fill-current" /></ComposerPrimitive.Cancel>
         </AuiIf>
-      </div>
-    </div>
+      </ComposerActions>
+    </ComposerToolbar>
   );
 };
 
 const MessageError: FC = () => {
+  const { canSend } = useChatRunSettings();
   return (
     <MessagePrimitive.Error>
       <ErrorPrimitive.Root className="aui-message-error-root group/error border-destructive bg-destructive/10 text-destructive dark:bg-destructive/5 data-[run-state=in-progress]:border-border data-[run-state=in-progress]:bg-muted/40 data-[run-state=in-progress]:text-muted-foreground mt-2 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-md border p-3 text-sm data-[run-state=stale]:border-amber-500/40 data-[run-state=stale]:bg-amber-500/10 data-[run-state=stale]:text-amber-800 dark:text-red-200 dark:data-[run-state=stale]:bg-amber-500/5 dark:data-[run-state=stale]:text-amber-200">
         <TriangleAlertIcon className="hidden size-4 shrink-0 group-data-[run-state=stale]/error:block" />
         <Loader2Icon className="hidden size-4 shrink-0 animate-spin group-data-[run-state=in-progress]/error:block motion-reduce:animate-none" />
         <ErrorPrimitive.Message className="aui-message-error-message line-clamp-2 min-w-0 flex-1" />
-        <ActionBarPrimitive.Resume render={<Button variant="outline" size="sm" className="h-7 gap-1.5 border-amber-500/40 bg-transparent hover:bg-amber-500/15 disabled:hidden dark:border-amber-400/30" />}><PlayIcon className="size-3.5" />Resume
+        <ActionBarPrimitive.Resume disabled={!canSend} render={<Button variant="outline" size="sm" className="h-7 gap-1.5 border-amber-500/40 bg-transparent hover:bg-amber-500/15 disabled:hidden dark:border-amber-400/30" />}><PlayIcon className="size-3.5" />Resume
                         </ActionBarPrimitive.Resume>
         <ActionBarPrimitive.RefreshRun render={<Button variant="ghost" size="sm" className="h-7 gap-1.5 disabled:hidden" />}><RefreshCwIcon className="size-3.5" />Refresh
                         </ActionBarPrimitive.RefreshRun>
@@ -535,114 +657,99 @@ const MessageError: FC = () => {
 };
 
 const AssistantMessage: FC = () => {
+  const progressLabel = useVisibleThinkingLabel(useAuiState(thinkingLabel));
   const {
-    ToolFallback: ToolFallbackComponent = SearchReportToolCall,
+    ToolFallback: ToolFallbackComponent = ToolFallback,
     ToolGroup,
     ReasoningGroup,
     TaskGroup: TaskGroupComponent,
   } = useContext(ThreadComponentsContext);
   const groupBy = TaskGroupComponent ? taskAwareGroupBy : messageGroupBy;
-  const isLocationLookupOnly = useAuiState(
-    (s) => s.message.parts.length > 0 && s.message.parts.every(isLocationLookup),
-  );
-  const isSearchToolOnlyMessage = useAuiState(
-    (s) =>
-      s.message.parts.length > 0 &&
-      s.message.parts.every(
-        (part) =>
-          part.type === "tool-call" &&
-          part.toolName === "search_report_evidence",
-      ),
+  const toolUIs = useAuiState((s) => s.tools.toolUIs);
+  const isHiddenToolMessage = useAuiState(
+    (s) => s.message.parts.length > 0 &&
+      s.message.parts.every((part) => isHiddenToolCall(part, s.tools.toolUIs, Boolean(TaskGroupComponent))) &&
+      !(s.message.status?.type === "incomplete" && s.message.status.reason === "error"),
   );
 
-  if (isLocationLookupOnly) return null;
+  if (isHiddenToolMessage && !progressLabel) return null;
 
   return (
     <MessagePrimitive.Root
       data-slot="aui_assistant-message-root"
       data-role="assistant"
-      className={cn(
-        "fade-in slide-in-from-bottom-1 animate-in relative duration-150 [contain-intrinsic-size:auto_200px] [content-visibility:auto]",
-        isSearchToolOnlyMessage && "-mb-6",
-      )}
+      className="fade-in slide-in-from-bottom-1 animate-in relative duration-150 [contain-intrinsic-size:auto_200px] [content-visibility:auto]"
     >
       <div
         data-slot="aui_assistant-message-content"
-        className="text-foreground px-2 leading-relaxed wrap-break-word"
+        className="text-foreground px-2 leading-relaxed font-sans wrap-break-word"
       >
-        <MessagePrimitive.GroupedParts groupBy={groupBy}>
-          {({ part, children }) => {
-            switch (part.type) {
-              case "group-chainOfThought":
-                return <div data-slot="aui_chain-of-thought">{children}</div>;
-              case "group-task":
-                return TaskGroupComponent ? (
-                  <TaskGroupComponent group={part} />
-                ) : null;
-              case "group-tool":
-                if (ToolGroup) {
-                  return <ToolGroup group={part}>{children}</ToolGroup>;
-                }
-                return <div className="flex flex-col gap-1.5">{children}</div>;
-              case "group-reasoning": {
-                if (ReasoningGroup) {
+        {progressLabel && <ThinkingIndicator role="status" label={progressLabel} className="mb-2" />}
+        <AnswerEvidence>
+          <MessagePrimitive.GroupedParts groupBy={groupBy} indicator="never">
+            {({ part, children }) => {
+              switch (part.type) {
+                case "group-chainOfThought":
+                  return <div data-slot="aui_chain-of-thought">{children}</div>;
+                case "group-task":
+                  return TaskGroupComponent ? (
+                    <TaskGroupComponent group={part} />
+                  ) : null;
+                case "group-tool":
+                  if (ToolGroup) {
+                    return <ToolGroup group={part}>{children}</ToolGroup>;
+                  }
+                  return <div className="flex flex-col gap-1.5">{children}</div>;
+                case "group-reasoning": {
+                  if (ReasoningGroup) {
+                    return (
+                      <ReasoningGroup group={part}>{children}</ReasoningGroup>
+                    );
+                  }
+                  const running = part.status.type === "running";
                   return (
-                    <ReasoningGroup group={part}>{children}</ReasoningGroup>
+                    <ReasoningRoot streaming={running}>
+                      <ReasoningTrigger
+                        active={running}
+                        duration={reasoningDuration(part.timing)}
+                      />
+                      <ReasoningContent aria-busy={running}>
+                        <ReasoningText>{children}</ReasoningText>
+                      </ReasoningContent>
+                    </ReasoningRoot>
                   );
                 }
-                const running = part.status.type === "running";
-                return (
-                  <ReasoningRoot streaming={running}>
-                    <ReasoningTrigger
-                      active={running}
-                      duration={reasoningDuration(part.timing)}
-                    />
-                    <ReasoningContent aria-busy={running}>
-                      <ReasoningText>{children}</ReasoningText>
-                    </ReasoningContent>
-                  </ReasoningRoot>
-                );
+                case "text":
+                  return <AnswerMarkdown />;
+                case "reasoning":
+                  return <Reasoning {...part} />;
+                case "tool-call":
+                  if (isHiddenToolCall(part, toolUIs)) return null;
+                  if (part.toolName === "show_geo_map") {
+                    return <GeoMapToolCall {...part} />;
+                  }
+                  if (part.toolUI) return part.toolUI;
+                  return <ToolFallbackComponent {...part} />;
+                case "data":
+                  return null;
+                case "file":
+                  return (
+                    <div data-slot="aui_assistant-message-file" className="py-1">
+                      <MessageFile {...part} />
+                    </div>
+                  );
+                case "image":
+                  return (
+                    <div data-slot="aui_assistant-message-image" className="py-1">
+                      <Image {...part} />
+                    </div>
+                  );
+                default:
+                  return null;
               }
-              case "text":
-                return <MarkdownText />;
-              case "reasoning":
-                return <Reasoning {...part} />;
-              case "tool-call":
-                if (isLocationLookup(part)) return null;
-                if (part.toolName === "show_geo_map") {
-                  return <GeoMapToolCall {...part} />;
-                }
-                if (part.toolUI) return part.toolUI;
-                return <ToolFallbackComponent {...part} />;
-              case "data":
-                return null;
-              case "file":
-                return (
-                  <div data-slot="aui_assistant-message-file" className="py-1">
-                    <MessageFile {...part} />
-                  </div>
-                );
-              case "image":
-                return (
-                  <div data-slot="aui_assistant-message-image" className="py-1">
-                    <Image {...part} />
-                  </div>
-                );
-              case "indicator":
-                return (
-                  <span
-                    data-slot="aui_assistant-message-indicator"
-                    className="animate-pulse font-sans"
-                    aria-label="Assistant is working"
-                  >
-                    {"●"}
-                  </span>
-                );
-              default:
-                return null;
-            }
-          }}
-        </MessagePrimitive.GroupedParts>
+            }}
+          </MessagePrimitive.GroupedParts>
+        </AnswerEvidence>
         <MessageError />
       </div>
 
@@ -650,6 +757,15 @@ const AssistantMessage: FC = () => {
     </MessagePrimitive.Root>
   );
 };
+
+const CopyMessage: FC = () => (
+  <ActionBarPrimitive.Copy
+    render={<TooltipIconButton tooltip="Copy" aria-label="Copy message" className="size-7" />}
+  >
+    <AuiIf condition={(s) => s.message.isCopied}><CheckIcon /></AuiIf>
+    <AuiIf condition={(s) => !s.message.isCopied}><CopyIcon /></AuiIf>
+  </ActionBarPrimitive.Copy>
+);
 
 const MessageFile: FileMessagePartComponent = (part) => {
   const image = part.mimeType.toLowerCase().startsWith("image/")
@@ -688,7 +804,7 @@ const UserMessage: FC = () => {
       <UserMessageAttachments />
 
       <div className="aui-user-message-content-wrapper relative col-start-2 min-w-0">
-        <div className="aui-user-message-content peer bg-muted text-foreground rounded-(--composer-radius) px-4 py-2 wrap-break-word empty:hidden">
+        <div className="aui-user-message-content peer bg-muted text-foreground font-sans rounded-(--composer-radius) px-5 py-3 wrap-break-word empty:hidden">
           <MessagePrimitive.Parts
             components={{ File: UserFilePart, Image: UserImagePart }}
           />
@@ -719,20 +835,25 @@ const UserActionBar: FC = () => {
 };
 
 const EditComposer: FC = () => {
+  const { canSend } = useChatRunSettings();
   return (
     <MessagePrimitive.Root
       data-slot="aui_edit-composer-wrapper"
       className="flex flex-col px-2 [contain-intrinsic-size:auto_200px] [content-visibility:auto]"
     >
-      <ComposerPrimitive.Root className="aui-edit-composer-root border-foreground/10 focus-within:border-foreground/25 ms-auto flex w-full max-w-[85%] cursor-text flex-col rounded-(--composer-radius) border bg-(--composer-bg) transition-[border-color]">
+      <ComposerPrimitive.Root
+        className="aui-edit-composer-root border-foreground/10 focus-within:border-foreground/25 ms-auto flex w-full max-w-[85%] cursor-text flex-col rounded-(--composer-radius) border bg-(--composer-bg) transition-[border-color]"
+        onSubmit={(event) => { if (!canSend) event.preventDefault(); }}
+      >
         <ComposerPrimitive.Input
           className="aui-edit-composer-input text-foreground min-h-14 w-full resize-none bg-transparent px-4 pt-3 pb-1 text-base outline-none"
           autoFocus
+          submitMode={canSend ? "enter" : "none"}
         />
         <div className="aui-edit-composer-footer mx-2.5 mb-2.5 flex items-center gap-1.5 self-end">
           <ComposerPrimitive.Cancel render={<Button variant="ghost" size="sm" className="h-8 px-3" />}>Cancel
                               </ComposerPrimitive.Cancel>
-          <ComposerPrimitive.Send render={<Button size="sm" className="h-8 px-3" />}>Update
+          <ComposerPrimitive.Send disabled={!canSend} render={<Button size="sm" className="h-8 px-3" />}>Update
                               </ComposerPrimitive.Send>
         </div>
       </ComposerPrimitive.Root>

@@ -179,8 +179,6 @@ async def agui_chat(request: Request) -> Response:
         body = await request.body()
         if len(body) > MAX_CHAT_BODY_BYTES:
             return JSONResponse({"error": "Chat request is too large"}, status_code=413)
-        import json
-
         payload = json.loads(body)
         thread_id = str(UUID(payload.get("threadId", "")))
         messages = payload.get("messages", [])
@@ -212,27 +210,89 @@ async def agui_chat(request: Request) -> Response:
     except Exception:
         return JSONResponse({"error": "Invalid chat request"}, status_code=400)
 
-    from ochask.chat import SearchContext, agent
-
+    from ag_ui.core import StateSnapshotEvent, UserMessage
+    from pydantic import ValidationError
+    from pydantic_ai.models.openai import OpenAIResponsesModelSettings
     from pydantic_ai.usage import UsageLimits
-
     from pydantic_ai.ui.ag_ui import AGUIAdapter
 
-    return await AGUIAdapter.dispatch_request(
-        request,
-        agent=agent,
-        deps=SearchContext(),
+    from ochask.chat import LUNA_OUTPUT_BUDGET, SearchContext, agent, chat_model_config, configured_model
+    from ochask.web.chat_options import ChatOptions, filter_history, run_tool_sources
+
+    model = configured_model()
+    config = chat_model_config(model)
+    try:
+        forwarded = payload.get("forwardedProps")
+        options = ChatOptions.model_validate(forwarded.get("ochask", {}) if isinstance(forwarded, dict) else {})
+    except ValidationError:
+        return JSONResponse({"error": "Invalid chat settings"}, status_code=400)
+    if not options.enabled_sources:
+        return JSONResponse({"error": "Enable Archive or OCHA before sending"}, status_code=400)
+    if options.modelId is not None and options.modelId != config["id"]:
+        return JSONResponse({"error": "This chat model is unavailable"}, status_code=400)
+    if options.reasoningEffort is not None and options.reasoningEffort not in config["reasoningEfforts"]:
+        return JSONResponse({"error": "This model does not support the selected reasoning effort"}, status_code=400)
+
+    try:
+        adapter = await AGUIAdapter.from_request(request, agent=agent)
+    except ValidationError:
+        return JSONResponse({"error": "Invalid AG-UI request"}, status_code=422)
+    history, history_sources = filter_history(adapter.run_input.messages, options)
+    adapter.run_input = adapter.run_input.model_copy(update={
+        "messages": history,
+        "tools": None,
+        "context": None,
+        "state": None,
+    })
+
+    current_user = next(
+        (message for message in reversed(history) if isinstance(message, UserMessage)), None,
+    )
+
+    async def record_sources(result):
+        if current_user is not None:
+            dependencies = history_sources | run_tool_sources(result.new_messages())
+            yield StateSnapshotEvent(snapshot={
+                "ochaskSourceContext": {
+                    "userMessageId": current_user.id,
+                    "sources": sorted(dependencies),
+                },
+            })
+
+    model_settings = None
+    output_budget = 2_048
+    if effort := options.reasoningEffort or config["defaultReasoningEffort"]:
+        output_budget = LUNA_OUTPUT_BUDGET
+        model_settings = OpenAIResponsesModelSettings(
+            openai_reasoning_effort=effort,
+            openai_store=False,
+            max_tokens=output_budget,
+        )
+
+    return adapter.streaming_response(adapter.run_stream(
+        deps=SearchContext(enabled_sources=options.enabled_sources),
+        model=model,
+        model_settings=model_settings,
         conversation_id=thread_id,
-        manage_message_history="client",
         usage_limits=UsageLimits(
             request_limit=5,
-            tool_calls_limit=3,
+            tool_calls_limit=15,
             input_tokens_limit=128_000,
             per_request_input_tokens_limit=128_000,
-            output_tokens_limit=2_048,
+            output_tokens_limit=output_budget,
             count_tokens_before_request=True,
         ),
         timeout=90,
+        on_complete=record_sources,
+    ))
+
+
+async def chat_config(_: Request) -> Response:
+    from ochask.chat import chat_model_config, configured_model
+
+    return JSONResponse(
+        {"model": chat_model_config(configured_model())},
+        headers={"Cache-Control": "no-store"},
     )
 
 
@@ -260,6 +320,7 @@ app = Starlette(
         Route("/api/stats", workspace_stats),
         Route("/api/corpus", corpus, methods=["GET"]),
         Route("/api/search", search_reports, methods=["POST"]),
+        Route("/api/chat/config", chat_config, methods=["GET"]),
         Route("/api/chat", agui_chat, methods=["POST"]),
         Mount("/static", StaticFiles(directory=STATIC_DIR), name="static"),
     ],

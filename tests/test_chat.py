@@ -1,15 +1,23 @@
 import importlib
+import json
 from uuid import uuid4
 
 import pytest
-from pydantic_ai.ui.ag_ui import AGUIAdapter
-from starlette.responses import JSONResponse
+from pydantic_ai.models.function import DeltaToolCall, FunctionModel
+from pydantic_ai.toolsets import FunctionToolset
+from pydantic_ai.usage import RequestUsage
 from starlette.testclient import TestClient
+
+
+class StreamingModel(FunctionModel):
+    async def count_tokens(self, messages, model_settings, model_request_parameters):
+        return RequestUsage(input_tokens=100)
 
 
 @pytest.fixture
 def chat(monkeypatch):
     monkeypatch.setenv("OPENAI_CHAT_MODEL", "openai:gpt-4.1-mini")
+    monkeypatch.delenv("OCHASK_ARCHIVE_MCP_URL", raising=False)
     return importlib.import_module("ochask.chat")
 
 
@@ -25,6 +33,48 @@ def test_search_tool_requests_up_to_30_chunks(chat, monkeypatch):
     assert calls == [("water", 30)]
 
 
+def test_agent_has_bearing_witness_mcp_toolset(chat):
+    from pydantic_ai.mcp import MCPToolset
+
+    assert isinstance(chat.archive_toolset.wrapped, MCPToolset)
+    assert chat.archive_toolset.wrapped.include_instructions is False
+    assert chat.archive_mcp_url == "https://archiveai.bw-team.com/mcp"
+
+
+@pytest.mark.parametrize("failure", ["connect", "discovery"])
+def test_archive_mcp_failure_disables_archive_tools_without_raising(chat, failure):
+    import asyncio
+
+    class FailingToolset:
+        async def __aenter__(self):
+            if failure == "connect":
+                raise RuntimeError("offline")
+            return self
+
+        async def __aexit__(self, *_args):
+            return None
+
+        async def get_tools(self, _ctx):
+            if failure == "discovery":
+                raise RuntimeError("invalid tool list")
+            raise AssertionError("tool discovery should be skipped after connection failure")
+
+    optional = chat.OptionalArchiveToolset(FailingToolset())
+
+    async def check():
+        await optional.__aenter__()
+        assert await optional.get_tools(None) == {}
+        await optional.__aexit__(None, None, None)
+
+    asyncio.run(check())
+
+
+def test_archive_mcp_url_can_be_configured(monkeypatch):
+    monkeypatch.setenv("OCHASK_ARCHIVE_MCP_URL", "https://archive.example/mcp")
+    chat = importlib.import_module("ochask.chat")
+    assert chat.archive_mcp_endpoint() == "https://archive.example/mcp"
+
+
 def test_chat_ui_endpoint(chat):
     from ochask.web.app import app
 
@@ -32,24 +82,196 @@ def test_chat_ui_endpoint(chat):
         assert client.get("/").status_code == 200
 
 
-@pytest.mark.parametrize("effort", [None, "high"])
-def test_chat_endpoint_uses_model_defaults(chat, monkeypatch, effort):
+def post_run(client, messages, settings=None):
+    payload = {
+        "threadId": str(uuid4()),
+        "runId": str(uuid4()),
+        "messages": messages,
+    }
+    if settings is not None:
+        payload["forwardedProps"] = {"ochask": settings}
+    return client.post("/api/chat", json=payload, headers={"Accept": "text/event-stream"})
+
+
+def stream_events(response):
+    assert response.status_code == 200
+    events = [
+        json.loads(line.removeprefix("data: "))
+        for line in response.text.splitlines()
+        if line.startswith("data: ")
+    ]
+    assert not [event for event in events if event["type"] == "RUN_ERROR"], events
+    assert events[-1]["type"] == "RUN_FINISHED"
+    return events
+
+
+@pytest.mark.parametrize(
+    ("archive", "ocha", "offline"),
+    [(True, True, False), (False, True, False), (True, False, False), (True, True, True)],
+)
+def test_source_toggles_control_prompt_and_toolset(chat, monkeypatch, archive, ocha, offline):
     from ochask.web.app import app
 
+    entered = []
+    invocations = []
+
+    class ArchiveToolset(FunctionToolset):
+        async def __aenter__(self):
+            entered.append(True)
+            if offline:
+                raise RuntimeError("offline")
+            return self
+
+    def search_archive(query: str) -> list:
+        """Search the test archive."""
+        return []
+
+    fake_archive = chat.OptionalArchiveToolset(ArchiveToolset([search_archive]))
+    monkeypatch.setattr(chat, "archive_toolset", fake_archive)
+
+    async def respond(messages, info):
+        invocations.append(info)
+        yield "Test answer"
+
+    with chat.agent.override(model=StreamingModel(stream_function=respond)):
+        with TestClient(app, base_url="http://localhost") as client:
+            response = post_run(
+                client, [{"id": "question", "role": "user", "content": "What happened?"}],
+                {"sources": {"archive": archive, "ocha": ocha}},
+            )
+    stream_events(response)
+    assert entered == ([True] if archive else [])
+    assert len(invocations) == 1
+    info = invocations[0]
+    tools = {tool.name for tool in info.function_tools}
+    assert ("search_archive" in tools) == (archive and not offline)
+    assert ("search_report_evidence" in tools) == ocha
+    assert ("Bearing Witness" in info.instructions) == archive
+    assert ("indexed OCHA" in info.instructions) == ocha
+
+
+@pytest.mark.parametrize(
+    "settings",
+    [
+        {"sources": {"archive": False, "ocha": False}},
+        {"sources": {"archive": "false", "ocha": True}},
+        {"modelId": "unconfigured-model"},
+        {"reasoningEffort": "medium"},
+        {"reasoningEffort": "xhigh"},
+    ],
+)
+def test_invalid_settings_rejected_before_agent(chat, monkeypatch, settings):
+    from ochask.web.app import app
+    from pydantic_ai.ui.ag_ui import AGUIAdapter
+
+    async def must_not_dispatch(*args, **kwargs):
+        raise AssertionError("Rejected request attempted to start AG-UI")
+
+    monkeypatch.setattr(AGUIAdapter, "from_request", must_not_dispatch)
+    with TestClient(app, base_url="http://localhost") as client:
+        response = post_run(client, [{"id": "q", "role": "user", "content": "Question"}], settings)
+    assert response.status_code == 400
+
+
+@pytest.mark.parametrize(
+    ("configured", "effort", "expected"),
+    [
+        ("openai:gpt-4.1-mini", None, None),
+        ("openai:gpt-6-luna", None, "medium"),
+        ("openai:gpt-6-luna", "high", "high"),
+        ("openai-chat:gpt-6-luna", "high", "high"),
+        ("gpt-6-luna", "low", "low"),
+    ],
+)
+def test_config_and_model_settings(chat, monkeypatch, configured, effort, expected):
+    from ochask.web.app import app
+    from pydantic_ai.ui.ag_ui import AGUIAdapter
+
+    monkeypatch.setenv("OPENAI_CHAT_MODEL", configured)
     calls = []
 
-    async def fake_dispatch(request, **kwargs):
+    def capture_run(adapter, **kwargs):
         calls.append(kwargs)
-        return JSONResponse({"ok": True})
+        return iter(())
 
-    monkeypatch.setattr(AGUIAdapter, "dispatch_request", fake_dispatch)
-    headers = {"X-OCHAsk-Reasoning-Effort": effort} if effort else {}
+    def empty_response(adapter, _stream):
+        from starlette.responses import Response
+        return Response()
+
+    monkeypatch.setattr(AGUIAdapter, "run_stream", capture_run)
+    monkeypatch.setattr(AGUIAdapter, "streaming_response", empty_response)
+    settings = {"modelId": "gpt-6-luna", "reasoningEffort": effort} if effort else None
     with TestClient(app, base_url="http://localhost") as client:
-        response = client.post(
-            "/api/chat",
-            json={"threadId": str(uuid4())},
-            headers=headers,
-        )
+        config = client.get("/api/chat/config").json()["model"]
+        assert config["id"] == configured.rsplit(":", 1)[-1]
+        assert config["defaultReasoningEffort"] == ("medium" if expected else None)
+        response = post_run(client, [{"id": "q", "role": "user", "content": "Question"}], settings)
 
     assert response.status_code == 200
-    assert "model_settings" not in calls[0]
+    run = calls[0]
+    assert run["deps"].enabled_sources == {"archive", "ocha"}
+    if expected:
+        assert run["model"] == "openai-responses:gpt-6-luna"
+        assert run["model_settings"] == {
+            "openai_reasoning_effort": expected,
+            "openai_store": False,
+            "max_tokens": 25_000,
+        }
+        assert run["usage_limits"].output_tokens_limit == 25_000
+    else:
+        assert run["model"] == configured
+        assert run["model_settings"] is None
+        assert run["usage_limits"].output_tokens_limit == 2_048
+
+
+def test_disabled_source_history_and_new_single_source_turn(chat, monkeypatch):
+    from ochask.web.app import app
+    from pydantic_ai.messages import ModelMessagesTypeAdapter
+
+    inspected_history = []
+    archives = [
+        {"id": "q1", "role": "user", "content": "First question"},
+        {
+            "id": "archive-call", "role": "assistant", "content": "",
+            "toolCalls": [{
+                "id": "archive-result", "type": "function",
+                "function": {"name": "search_archive", "arguments": "{}"},
+            }],
+        },
+        {"id": "result1", "role": "tool", "toolCallId": "archive-result", "content": "Archive evidence"},
+        {"id": "answer1", "role": "assistant", "content": "Archive answer"},
+        {"id": "q2", "role": "user", "content": "Earlier follow-up"},
+        {"id": "answer2", "role": "assistant", "content": "Derived from previous answer"},
+    ]
+    monkeypatch.setattr(chat, "search_reports", lambda *args, **kwargs: [])
+
+    async def respond(messages, info):
+        inspected_history.append(ModelMessagesTypeAdapter.dump_json(messages).decode())
+        if len(inspected_history) == 1:
+            yield {0: DeltaToolCall(name="search_report_evidence", json_args='{"query":"water"}')}
+        else:
+            yield "Only OCHA"
+
+    settings = {"sources": {"archive": False, "ocha": True}}
+    q3 = {"id": "q3", "role": "user", "content": "Question scoped to OCHA"}
+    with chat.agent.override(model=StreamingModel(stream_function=respond)):
+        with TestClient(app, base_url="http://localhost") as client:
+            events = stream_events(post_run(client, [*archives, q3], settings))
+            context, = [
+                event["snapshot"]["ochaskSourceContext"]
+                for event in events if event["type"] == "STATE_SNAPSHOT"
+            ]
+            assert context == {"userMessageId": "q3", "sources": ["ocha"]}
+            response = post_run(client, [
+                *archives, q3,
+                {"id": "answer3", "role": "assistant", "content": "Only OCHA"},
+                {"id": "q4", "role": "user", "content": "Next follow-up"},
+            ], {**settings, "priorTurnSources": {"q3": context["sources"]}})
+            stream_events(response)
+
+    assert len(inspected_history) == 3
+    for message_history in inspected_history:
+        for excluded in ("search_archive", "Archive evidence", "Archive answer", "Derived from previous answer"):
+            assert excluded not in message_history
+        assert "First question" in message_history
+    assert "Only OCHA" in inspected_history[-1]

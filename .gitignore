@@ -32,6 +32,7 @@ data/scraped/
 data/chunked/
 data/embedding_chunks/
 data/ingestion_runs/
+data/ochask-bm25.zip
 data/ochask-workspace.sqlite3
 data/ochask-workspace.sqlite3-shm
 data/ochask-workspace.sqlite3-wal

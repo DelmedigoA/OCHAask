@@ -2,6 +2,7 @@ import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from "react
 import { HttpAgent } from "@ag-ui/client";
 import { AssistantRuntimeProvider, useAuiState } from "@assistant-ui/react";
 import { useAgUiRuntime } from "@assistant-ui/react-ag-ui";
+import { ChatRunSettingsProvider } from "@/components/assistant-ui/chat-run-settings-provider";
 import bearingWitnessMark from "@/assets/bearing-witness-mark.svg";
 import bearingWitnessDarkMark from "@/assets/bearing-witness-mark-dark.svg";
 import {
@@ -311,7 +312,9 @@ function ChatWorkspace({ page, navigate }: { page: Page; navigate: (page: Page) 
         {page === "corpus" && <div className="flex-1 overflow-y-auto"><Suspense fallback={<PageLoading />}><CorpusPage /></Suspense></div>}
         {page === "search" && <div className="flex-1 overflow-y-auto"><Suspense fallback={<PageLoading />}><SearchPage /></Suspense></div>}
         {chatMounted && <div className={page === "chat" ? "flex min-h-0 flex-1 overflow-hidden" : "hidden"} aria-hidden={page !== "chat"}>
-          <Suspense fallback={<PageLoading />}><Thread autoFocus={false} /></Suspense>
+          <ChatRunSettingsProvider runtime={runtime}>
+            <Suspense fallback={<PageLoading />}><Thread autoFocus={false} /></Suspense>
+          </ChatRunSettingsProvider>
         </div>}
       </WorkspaceLayout>
     </AssistantRuntimeProvider>

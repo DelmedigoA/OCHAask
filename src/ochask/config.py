@@ -18,6 +18,7 @@ class Settings:
     embedding_model: str
     pdf_bucket: str = "pdfs"
     workspace_db_path: str = "data/ochask-workspace.sqlite3"
+    bm25_index_path: str | None = None
 
     @classmethod
     def from_environment(cls) -> Settings:
@@ -56,4 +57,5 @@ class Settings:
                 "OCHASK_WORKSPACE_DB_PATH", "data/ochask-workspace.sqlite3"
             ).strip()
             or "data/ochask-workspace.sqlite3",
+            bm25_index_path=os.getenv("OCHASK_BM25_INDEX_PATH", "").strip() or None,
         )

@@ -5,10 +5,12 @@ import "@assistant-ui/react-markdown/styles/dot.css";
 import {
   type CodeHeaderProps,
   MarkdownTextPrimitive,
+  type MarkdownTextPrimitiveProps,
   memoizeMarkdownComponents,
   useIsMarkdownCodeBlock,
 } from "@assistant-ui/react-markdown";
 import remarkGfm from "remark-gfm";
+import type { ExtraProps } from "react-markdown";
 import { type FC, memo, useMemo, useState } from "react";
 import type { TextMessagePartProps } from "@assistant-ui/react";
 import { CheckIcon, CopyIcon } from "lucide-react";
@@ -19,6 +21,7 @@ import { cn } from "@/lib/utils";
 
 type MarkdownTextProps = Partial<TextMessagePartProps> & {
   components?: Parameters<typeof memoizeMarkdownComponents>[0];
+  componentsByLanguage?: MarkdownTextPrimitiveProps["componentsByLanguage"];
 };
 
 const isShallowEqual = (
@@ -43,8 +46,10 @@ const useShallowStable = <T extends Record<string, unknown> | undefined>(
 
 const MarkdownTextImpl: FC<MarkdownTextProps> = ({
   components,
+  componentsByLanguage,
 }) => {
   const stableComponents = useShallowStable(components);
+  const stableComponentsByLanguage = useShallowStable(componentsByLanguage);
   const markdownComponents = useMemo(() => {
     if (!stableComponents) return defaultComponents;
     return {
@@ -58,12 +63,33 @@ const MarkdownTextImpl: FC<MarkdownTextProps> = ({
       remarkPlugins={[remarkGfm]}
       className="aui-md"
       components={markdownComponents}
+      componentsByLanguage={stableComponentsByLanguage}
       defer
     />
   );
 };
 
 export const MarkdownText = memo(MarkdownTextImpl);
+
+export type MarkdownLinkProps = React.ComponentPropsWithoutRef<"a"> & ExtraProps;
+
+export function MarkdownLink({
+  className,
+  node: _node,
+  ...props
+}: MarkdownLinkProps) {
+  return (
+    <a
+      {...props}
+      className={cn(
+        "aui-md-a text-primary hover:text-primary/80 underline underline-offset-2",
+        className,
+      )}
+      target="_blank"
+      rel="noopener noreferrer"
+    />
+  );
+}
 
 const CodeHeader: FC<CodeHeaderProps> = ({ language, code }) => {
   const { isCopied, copyToClipboard } = useCopyToClipboard();
@@ -153,17 +179,7 @@ const defaultComponents = memoizeMarkdownComponents({
       {...props}
     />
   ),
-  a: ({ className, ...props }) => (
-    <a
-      className={cn(
-        "aui-md-a text-primary hover:text-primary/80 underline underline-offset-2",
-        className,
-      )}
-      {...props}
-      target="_blank"
-      rel="noopener noreferrer"
-    />
-  ),
+  a: MarkdownLink,
   blockquote: ({ className, ...props }) => (
     <blockquote
       className={cn(

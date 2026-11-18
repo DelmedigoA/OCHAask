@@ -75,6 +75,27 @@ for hit in results:
 
 Search embeds the query once and fuses pgvector cosine similarity and English PostgreSQL full-text rankings using weighted reciprocal rank fusion (k=60). Each candidate list contains up to ten times the requested result count. Weights are non-negative and at least one must be positive; the default weights are equal. Search requires the same server-side credentials and returns source chunks, not generated answers. Existing rows without new chunk IDs are excluded until their reports are reindexed.
 
+### Optional local BM25
+
+With the usual server credentials in `.env`, build the snapshot and start the local server with BM25 enabled:
+
+```sh
+uv run --group bm25 python -m ochask.bm25
+OCHASK_BM25_INDEX_PATH=data/ochask-bm25.zip \
+  uv run --group bm25 uvicorn ochask.web.app:app --host 127.0.0.1 --port 8000
+```
+
+The builder reads Supabase chunks for the configured embedding model and indexes report titles and chunk text with `bm25s`. The ignored local archive contains source text, chunk IDs, report IDs, URLs, and page numbers. Rerun the build command after ingestion or reindexing. It replaces the archive atomically, and running processes pick it up on their next BM25 search. For a custom archive path, use `--output` when building and set `OCHASK_BM25_INDEX_PATH` to the same path when serving.
+
+The path setting enables BM25 for unfiltered search and chat retrieval. The local path merges BM25 and the existing vector-only RPC by chunk ID with the same RRF weights and constant. Each candidate list is capped at 100 because the RPC returns at most 100 vector hits. Searches with date, issue, or title filters continue to use the existing filtered retrieval path. Leave the path unset for the default SQL hybrid.
+
+Run the local tests and paired retrieval benchmark with:
+
+```sh
+uv run --group bm25 pytest -q
+uv run --group bm25 python benchmark/retrieval.py
+```
+
 ## OCHAsk research workspace
 
 The local workspace has three pages: **Corpus**, **Search**, and **Chat**.
@@ -87,12 +108,24 @@ value is missing.
 Search calls the same `search_reports` helper used by the PydanticAI agent and
 keeps the existing hybrid retrieval order. Chat streams through assistant-ui's
 AG-UI runtime, keeps local conversation history, renders Markdown, and supports
-the agent's report search tool. Conversations are saved in browser storage and
-stay within that browser profile. The agent uses the default model settings and
-cites evidence with Markdown links to reports, page numbers, and short quotes.
+the agent's report search tool plus the Bearing Witness archive's MCP tools
+(`search_archive`, `lookup_url`, and `request_archiving`). Archive search uses
+keyword and meaning matching in English and Hebrew. Public search results are
+catalog metadata and descriptions, with snippets for some unindexed items; they
+do not include the full archived text or media. Archive citations link to the
+original item and its archived copy. Archive page access may require Bearing
+Witness sign-in. Set `OCHASK_ARCHIVE_MCP_URL` only when using a different MCP
+endpoint.
 
-Set `OPENAI_CHAT_MODEL` in `.env` (for example, `openai:gpt-6-luna`) and build
-the chat UI:
+Conversations are saved in browser storage and stay within that browser profile.
+Archive and OCHA are enabled by default. Turning off either source removes its
+tools and earlier evidence from future requests while keeping the transcript
+visible. At least one source is required to send. Linked evidence appears as
+inline citation previews and in the Sources panel below the answer.
+
+Chat defaults to GPT-6 Luna on the OpenAI Responses API. Choose Low, Medium,
+or High reasoning effort in the composer. To use a different model, set
+`OPENAI_CHAT_MODEL` in `.env`. Build the chat UI with npm.
 
 ```sh
 cd frontend

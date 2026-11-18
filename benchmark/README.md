@@ -1,10 +1,20 @@
 # OCHAsk RAG benchmark
 
+## Retrieval comparison
+
+Run `uv run --group bm25 python benchmark/retrieval.py` after building the local BM25 snapshot. The comparison reuses the same embedding for both backends and reports macro-average evidence-page recall and first evidence-page reciprocal rank. A chunk counts when its report URL and page metadata match a benchmark label. A page hit does not verify that the retrieved chunk contains the supporting passage. V02 measures retrieval of the page documenting that the requested figure was unavailable.
+
+The ten short inputs are keyword probes scored against the original questions' source pages. Some omit the report numbers, dates, or comparison scope, so relevant results for the short input can come from other pages. Use the short-input figures to diagnose retrieval of those particular source pages. A general short-query quality comparison needs independently judged relevance labels.
+
+Latency covers warm retrieval, including the live Supabase request, and excludes embedding generation. BM25 snapshot loading is timed separately. Rebuild the snapshot before comparing against a changed Supabase corpus.
+
+## Question and answer dataset
+
 The fixed English dataset contains ten questions built from physical, 1-based pages of the linked PDFs, independent of OCHAsk. Each evidence record records the source URL and SHA-256 of the downloaded PDF. Document IDs refer to `data/ocha_situation_reports_urls.csv`; the presence of an ID in that CSV does **not** establish that the report has been indexed. Ellipses in excerpts indicate omitted text. Re-download a PDF and check its hash before using its excerpts as evidence; if an upstream PDF changes, verify the original before revising and versioning the dataset. V02 is scoped to one report and tests the report's explicit statement that the requested figure is unavailable.
 
-## Current status
+### Answer-generation runner
 
-This repository currently contains a prototype report loader, a list of source URLs, and a landing-page database migration. It does not contain an indexed PDF corpus, a retrieval/generation pipeline, a question-answering API, or an LLM provider integration. Therefore an end-to-end benchmark run and its real scores cannot be produced in this checkout. The runner supplies a judge rubric and validation, but **does not include a provider-specific LLM client**. Both adapters below must be implemented against actual services before use. Mock results are not benchmark results.
+`benchmark/run.py` is a separate end-to-end evaluation runner. It supplies a judge rubric and validation and expects external retrieval/answer and judge adapters. The retrieval comparison above uses OCHAsk's search code directly and does not require those adapters.
 
 ## Execution
 
