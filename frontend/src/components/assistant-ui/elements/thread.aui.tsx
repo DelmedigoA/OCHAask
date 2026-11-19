@@ -565,7 +565,7 @@ const ThreadSuggestionItem: FC = () => {
 type ComposerProps = Pick<ThreadRootProps, "autoFocus">;
 
 const Composer: FC<ComposerProps> = ({ autoFocus }) => {
-  const { canSend, sources, configError, model, retryConfig } = useChatRunSettings();
+  const { canSend, sources, configError, retryConfig } = useChatRunSettings();
   const noSources = !sources.archive && !sources.ocha;
 
   return (
@@ -596,7 +596,7 @@ const Composer: FC<ComposerProps> = ({ autoFocus }) => {
             <span role="status">Chat settings could not load.</span>
             <Button type="button" size="xs" variant="ghost" onClick={retryConfig}>Retry</Button>
           </div>
-        ) : (!model && <p role="status" className="px-2 text-xs text-muted-foreground">Loading chat settings…</p>)}
+        ) : null}
       </ComposerBar>
     </ComposerPrimitive.Root>
   );

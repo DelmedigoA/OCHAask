@@ -2,6 +2,7 @@ import { type AssistantRuntime, useAui } from "@assistant-ui/react";
 import { type PropsWithChildren, useEffect, useLayoutEffect, useState } from "react";
 import {
   ChatRunSettingsContext,
+  DEFAULT_CHAT_MODEL,
   type ChatModel,
   type ReasoningEffort,
   type SourceSelection,
@@ -15,7 +16,7 @@ export function ChatRunSettingsProvider({
   const aui = useAui();
   const [sources, setSources] = useState<SourceSelection>({ archive: true, ocha: true });
   const [effortOverride, setEffort] = useState<ReasoningEffort>();
-  const [model, setModel] = useState<ChatModel>();
+  const [model, setModel] = useState<ChatModel>(DEFAULT_CHAT_MODEL);
   const [configError, setConfigError] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const effort = effortOverride ?? model?.defaultReasoningEffort ?? null;

@@ -18,6 +18,13 @@ export type ChatModel = {
   defaultReasoningEffort: ReasoningEffort | null;
 };
 
+export const DEFAULT_CHAT_MODEL: ChatModel = {
+  id: "gpt-6-luna",
+  label: "GPT-6 Luna",
+  reasoningEfforts: ["low", "medium", "high"],
+  defaultReasoningEffort: "low",
+};
+
 export type ChatRunSettings = {
   model: ChatModel | undefined;
   effort: ReasoningEffort | null;
