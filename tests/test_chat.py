@@ -18,7 +18,14 @@ class StreamingModel(FunctionModel):
 def chat(monkeypatch):
     monkeypatch.setenv("OPENAI_CHAT_MODEL", "openai:gpt-4.1-mini")
     monkeypatch.delenv("OCHASK_ARCHIVE_MCP_URL", raising=False)
-    return importlib.import_module("ochask.chat")
+    chat = importlib.import_module("ochask.chat")
+
+    class AllowGuard:
+        async def check(self, _question, _recent_context=None, _enabled_sources=None):
+            return True, False
+
+    monkeypatch.setattr(chat, "relevance_guard", AllowGuard())
+    return chat
 
 
 def test_search_tool_requests_up_to_30_chunks(chat, monkeypatch):
@@ -106,6 +113,44 @@ def stream_events(response):
 
 
 @pytest.mark.parametrize(
+    ("unavailable", "message"),
+    [
+        (False, "I can help with OCHA humanitarian reports"),
+        (True, "I can’t check that request right now"),
+    ],
+)
+def test_relevance_guard_marks_only_scope_refusals(chat, monkeypatch, unavailable, message):
+    from ochask.web.app import app
+    from pydantic_ai.ui.ag_ui import AGUIAdapter
+
+    class RejectingGuard:
+        async def check(self, _question, _recent_context=None, _enabled_sources=None):
+            return False, unavailable
+
+    monkeypatch.setattr(chat, "relevance_guard", RejectingGuard())
+
+    def should_not_run_agent(*_args, **_kwargs):
+        raise AssertionError("Out-of-scope request reached the answering model")
+
+    monkeypatch.setattr(AGUIAdapter, "run_stream", should_not_run_agent)
+    with TestClient(app, base_url="http://localhost") as client:
+        events = stream_events(post_run(
+            client,
+            [{"id": "question", "role": "user", "content": "Tell me a joke"}],
+        ))
+
+    assert [event["type"] for event in events] == [
+        "RUN_STARTED", "TEXT_MESSAGE_START", "TEXT_MESSAGE_CONTENT",
+        "TEXT_MESSAGE_END", "STATE_SNAPSHOT", "RUN_FINISHED",
+    ]
+    content = next(event["delta"] for event in events if event["type"] == "TEXT_MESSAGE_CONTENT")
+    assert content.startswith(message)
+    snapshot = next(event["snapshot"] for event in events if event["type"] == "STATE_SNAPSHOT")
+    assert snapshot["ochaskSourceContext"]["sources"] == []
+    assert snapshot["ochaskGuardrailMessageId"] == (None if unavailable else events[1]["messageId"])
+
+
+@pytest.mark.parametrize(
     ("archive", "ocha", "offline"),
     [(True, True, False), (False, True, False), (True, False, False), (True, True, True)],
 )
@@ -144,10 +189,53 @@ def test_source_toggles_control_prompt_and_toolset(chat, monkeypatch, archive, o
     assert len(invocations) == 1
     info = invocations[0]
     tools = {tool.name for tool in info.function_tools}
+    assert "mapping" in tools
     assert ("search_archive" in tools) == (archive and not offline)
-    assert ("search_report_evidence" in tools) == ocha
-    assert ("Bearing Witness" in info.instructions) == archive
-    assert ("indexed OCHA" in info.instructions) == ocha
+    assert ("search_ocha_corpus" in tools) == ocha
+    for tool_name in (
+        "search_bearing_witness_document",
+        "read_bearing_witness_pages",
+        "search_faqs",
+        "read_faq",
+        "list_project_metadata_records",
+        "read_project_metadata_record",
+    ):
+        assert (tool_name in tools) == archive
+    assert ("Use the Bearing Witness archive tools" in info.instructions) == archive
+    assert ("currently the only platform" in info.instructions) == archive
+    assert ("only a small selection of reports" in info.instructions) == ocha
+
+
+def test_mapping_streams_tool_result_without_research_source_dependency(chat, monkeypatch):
+    from ochask import geocoding
+    from ochask.web.app import app
+    from pydantic_ai.messages import ToolReturnPart
+
+    place = {"id": "osm-1", "label": "Test place", "lat": 51.5, "lng": -0.12}
+    monkeypatch.setattr(geocoding, "_lookup", lambda query, **kwargs: ([place], None))
+
+    async def respond(messages, info):
+        returns = [part for message in messages for part in message.parts if isinstance(part, ToolReturnPart)]
+        if returns:
+            assert returns[-1].content["places"] == [place]
+            yield "Here is the map."
+        else:
+            yield {0: DeltaToolCall(name="mapping", json_args='{"locations":["Test place"]}')}
+
+    with chat.agent.override(model=StreamingModel(stream_function=respond)):
+        with TestClient(app, base_url="http://localhost") as client:
+            events = stream_events(post_run(
+                client, [{"id": "map-question", "role": "user", "content": "Map Test place"}],
+                {"sources": {"archive": False, "ocha": True}},
+            ))
+
+    start = next(event for event in events if event["type"] == "TOOL_CALL_START")
+    result = next(event for event in events if event["type"] == "TOOL_CALL_RESULT")
+    assert start["toolCallName"] == "mapping"
+    assert start["toolCallId"] == result["toolCallId"]
+    assert json.loads(result["content"])["places"] == [place]
+    context = next(event["snapshot"]["ochaskSourceContext"] for event in events if event["type"] == "STATE_SNAPSHOT")
+    assert context == {"userMessageId": "map-question", "sources": []}
 
 
 @pytest.mark.parametrize(
@@ -177,7 +265,7 @@ def test_invalid_settings_rejected_before_agent(chat, monkeypatch, settings):
     ("configured", "effort", "expected"),
     [
         ("openai:gpt-4.1-mini", None, None),
-        ("openai:gpt-6-luna", None, "medium"),
+        ("openai:gpt-6-luna", None, "low"),
         ("openai:gpt-6-luna", "high", "high"),
         ("openai-chat:gpt-6-luna", "high", "high"),
         ("gpt-6-luna", "low", "low"),
@@ -204,7 +292,7 @@ def test_config_and_model_settings(chat, monkeypatch, configured, effort, expect
     with TestClient(app, base_url="http://localhost") as client:
         config = client.get("/api/chat/config").json()["model"]
         assert config["id"] == configured.rsplit(":", 1)[-1]
-        assert config["defaultReasoningEffort"] == ("medium" if expected else None)
+        assert config["defaultReasoningEffort"] == ("low" if expected else None)
         response = post_run(client, [{"id": "q", "role": "user", "content": "Question"}], settings)
 
     assert response.status_code == 200
@@ -248,7 +336,7 @@ def test_disabled_source_history_and_new_single_source_turn(chat, monkeypatch):
     async def respond(messages, info):
         inspected_history.append(ModelMessagesTypeAdapter.dump_json(messages).decode())
         if len(inspected_history) == 1:
-            yield {0: DeltaToolCall(name="search_report_evidence", json_args='{"query":"water"}')}
+            yield {0: DeltaToolCall(name="search_ocha_corpus", json_args='{"query":"water"}')}
         else:
             yield "Only OCHA"
 

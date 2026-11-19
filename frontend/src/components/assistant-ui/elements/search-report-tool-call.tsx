@@ -32,6 +32,30 @@ const archiveToolPresentation: Record<
     label: "Requested archiving",
     activeLabel: "Requesting archiving",
   },
+  search_bearing_witness_document: {
+    label: "Searched Bearing Witness document",
+    activeLabel: "Searching Bearing Witness document",
+  },
+  read_bearing_witness_pages: {
+    label: "Read Bearing Witness pages",
+    activeLabel: "Reading Bearing Witness pages",
+  },
+  search_faqs: {
+    label: "Searched Bearing Witness FAQs",
+    activeLabel: "Searching Bearing Witness FAQs",
+  },
+  read_faq: {
+    label: "Read a Bearing Witness FAQ",
+    activeLabel: "Reading a Bearing Witness FAQ",
+  },
+  list_project_metadata_records: {
+    label: "Checked Bearing Witness project information",
+    activeLabel: "Checking Bearing Witness project information",
+  },
+  read_project_metadata_record: {
+    label: "Read Bearing Witness project information",
+    activeLabel: "Reading Bearing Witness project information",
+  },
 };
 
 function parseResult(result: unknown): unknown {
@@ -84,11 +108,28 @@ function resultSummary(toolName: string, result: unknown): string {
   }
 
   if (!Array.isArray(parsed)) {
+    if (parsed && typeof parsed === "object") {
+      const error = (parsed as { error?: unknown }).error;
+      if (typeof error === "string" && error) return error;
+    }
+    if (toolName === "read_bearing_witness_pages" && parsed && typeof parsed === "object") {
+      const range = parsed as { start_page?: unknown; end_page?: unknown };
+      if (typeof range.start_page === "number" && typeof range.end_page === "number") {
+        return `Read Bearing Witness pages ${range.start_page}–${range.end_page}.`;
+      }
+    }
+    if (toolName === "read_faq") return "Bearing Witness FAQ loaded.";
+    if (toolName === "read_project_metadata_record") return "Bearing Witness project information loaded.";
     return typeof parsed === "string" && parsed ? parsed : "Search completed.";
   }
 
-  if (parsed.length === 0) return "No relevant report excerpts found.";
-  return `Found ${parsed.length.toLocaleString("en-US")} relevant ${parsed.length === 1 ? "excerpt" : "excerpts"}.`;
+  if (parsed.length === 0) return "No matching items found.";
+  const kind = toolName === "search_bearing_witness_document"
+    ? "page"
+    : toolName === "search_faqs"
+      ? "FAQ"
+      : "excerpt";
+  return `Found ${parsed.length.toLocaleString("en-US")} relevant ${parsed.length === 1 ? kind : `${kind}s`}.`;
 }
 
 export function SearchReportToolCallDisclosure(props: SearchReportToolCallProps) {
@@ -126,7 +167,7 @@ export function SearchReportToolCallDisclosure(props: SearchReportToolCallProps)
 export const SearchReportToolCall: ToolCallMessagePartComponent = (props) => {
   const isArchiveTool = props.toolName in archiveToolPresentation;
   if (
-    (props.toolName !== "search_report_evidence" && !isArchiveTool) ||
+    (props.toolName !== "search_ocha_corpus" && !isArchiveTool) ||
     props.status.type === "requires-action" ||
     props.approval != null ||
     props.interrupt != null

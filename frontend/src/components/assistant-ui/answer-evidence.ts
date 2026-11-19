@@ -156,6 +156,85 @@ function addArchiveEvidence(result: unknown, matches: Map<string, Evidence>) {
   }
 }
 
+function addBearingWitnessDocumentEvidence(value: unknown, matches: Map<string, Evidence>) {
+  const pending: Array<{
+    value: unknown;
+    sourceUrl?: string;
+    title?: string;
+  }> = [{ value }];
+  for (let cursor = 0; cursor < pending.length; cursor++) {
+    const current = pending[cursor];
+    const parsed = parseResult(current.value);
+    if (Array.isArray(parsed)) {
+      pending.push(...parsed.map((child) => ({
+        value: child,
+        sourceUrl: current.sourceUrl,
+        title: current.title,
+      })));
+      continue;
+    }
+    const record = recordOf(parsed);
+    if (!record) continue;
+    const url = absoluteUrl(record.source_url) ?? absoluteUrl(current.sourceUrl);
+    const normalizedUrl = url ? evidenceUrl(url) : undefined;
+    const page = typeof record.page === "number" && Number.isInteger(record.page) && record.page > 0
+      ? record.page
+      : undefined;
+    const title = sourceText(record.title, current.title);
+    if (normalizedUrl && page !== undefined && title) {
+      const key = citationKey(normalizedUrl, page);
+      if (!matches.has(key)) {
+        matches.set(key, {
+          key,
+          source: {
+            title: `Bearing Witness · p. ${page}`,
+            url,
+            snippet: excerpt(record.excerpt, record.content, record.text),
+          },
+        });
+      }
+    }
+    for (const child of Object.values(record)) {
+      if (child && typeof child === "object") {
+        pending.push({ value: child, sourceUrl: url, title });
+      }
+    }
+  }
+}
+
+function addProjectContextEvidence(value: unknown, matches: Map<string, Evidence>) {
+  const pending: unknown[] = [value];
+  for (let cursor = 0; cursor < pending.length; cursor++) {
+    const parsed = parseResult(pending[cursor]);
+    if (Array.isArray(parsed)) {
+      pending.push(...parsed);
+      continue;
+    }
+    const record = recordOf(parsed);
+    if (!record) continue;
+    const url = absoluteUrl(record.source_url) ?? absoluteUrl(record.url);
+    const title = sourceText(record.title, record.label, record.question, record.name);
+    if (url && title) {
+      const normalizedUrl = evidenceUrl(url);
+      const key = citationKey(normalizedUrl);
+      if (!matches.has(key)) {
+        matches.set(key, {
+          key,
+          source: {
+            title,
+            url,
+            snippet: excerpt(record.answer, record.description, record.summary,
+              typeof record.content === "string" ? record.content : undefined),
+          },
+        });
+      }
+    }
+    for (const child of Object.values(record)) {
+      if (child && typeof child === "object") pending.push(child);
+    }
+  }
+}
+
 type MarkdownNode = {
   type: string;
   children?: readonly MarkdownNode[];
@@ -201,9 +280,18 @@ export function buildAnswerEvidence(messages: readonly ThreadMessage[], index: n
         if (message?.role !== "assistant") continue;
         for (const part of message.content) {
           if (part.type !== "tool-call" || part.isError || part.result === undefined) continue;
-          if (part.toolName === "search_report_evidence") addOchaEvidence(parseResult(part.result), matched);
+          if (part.toolName === "search_ocha_corpus") addOchaEvidence(parseResult(part.result), matched);
           if (part.toolName === "search_archive" || part.toolName === "lookup_url") {
             addArchiveEvidence(part.result, matched);
+          }
+          if (part.toolName === "search_bearing_witness_document") {
+            addBearingWitnessDocumentEvidence(part.result, matched);
+          }
+          if (part.toolName === "read_bearing_witness_pages") {
+            addBearingWitnessDocumentEvidence(part.result, matched);
+          }
+          if (["search_faqs", "read_faq", "list_project_metadata_records", "read_project_metadata_record"].includes(part.toolName)) {
+            addProjectContextEvidence(part.result, matched);
           }
         }
       }

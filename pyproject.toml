@@ -18,6 +18,9 @@ dependencies = [
     "uvicorn>=0.34",
 ]
 
+[project.scripts]
+ochask-index-bearing-witness-document = "ochask.bearing_witness_ingest:main"
+
 [dependency-groups]
 local = [
     "docling>=2.150.1",
@@ -44,5 +47,5 @@ entrypoint = "src.ochask.web.app:app"
 where = ["src"]
 
 [tool.setuptools.package-data]
-ochask = ["prompts/*.md"]
+ochask = ["prompts/*.md", "data/*.json", "data/project-metadata/*.json", "data/faqs/bearing-witness/*.json"]
 "ochask.web" = ["static/*.html", "static/*.css", "static/*.js", "static/*.svg", "static/package.json", "static/vendor/pdfjs/*.mjs", "static/vendor/pdfjs/LICENSE", "static/vendor/marked/*.js", "static/vendor/marked/LICENSE", "static/workspace/*", "static/workspace/assets/*"]

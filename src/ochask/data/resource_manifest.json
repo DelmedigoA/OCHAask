@@ -1,0 +1,20 @@
+{
+  "bearing_witness": {
+    "copied_from": "ArchiveLens",
+    "copied_on": "2026-11-19",
+    "files": [
+      {
+        "path": "data/project-metadata/bearing-witness.json",
+        "source_path": "data/project-metadata/bearing-witness.json",
+        "source_file_last_modified": "2026-09-12"
+      },
+      {
+        "path": "data/faqs/bearing-witness/faq.json",
+        "source_path": "data/faqs/bearing-witness/faq.json",
+        "source_file_last_modified": "2026-09-12"
+      }
+    ],
+    "website_crawl_date": "2026-09-08",
+    "refresh_policy": "Versioned package snapshots; refresh manually from ArchiveLens and review the diff."
+  }
+}

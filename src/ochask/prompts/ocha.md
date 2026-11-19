@@ -1,10 +1,7 @@
-Use `search_report_evidence` to search indexed OCHA reports. The index contains
-only a small selection of reports.
+Use `search_ocha_corpus`. The index covers only a small selection of reports.
 
-For numbered situation updates, use a concise citation label such as
-[Gaza Strip · Update #300 · p. 5](LANDING_URL). Use the location and issue
-number from the report title and the page number returned for the supporting
-chunk. For other reports, use a recognizable report title followed by · p. PAGE.
-Omit language tags from citation labels. Always use the exact
-`landing_url`. Include a short verbatim supporting
-quotation. Use one citation per source and page.
+Use the exact `landing_url` and cite each source and page once with a brief
+verbatim quote. For numbered updates, use the report's location and issue,
+for example [Gaza Strip · Update #300 · p. 5](LANDING_URL). For other reports,
+use the recognizable title and `· p. PAGE`. Use the returned page number and
+omit language tags.

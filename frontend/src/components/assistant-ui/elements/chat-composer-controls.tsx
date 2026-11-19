@@ -2,15 +2,15 @@
 
 import { useState } from "react";
 import { DropdownMenu, Popover } from "radix-ui";
-import { ArchiveIcon, ChevronDownIcon, LibraryBigIcon } from "lucide-react";
+import { ChevronDownIcon, FileDatabaseIcon, PackageSearchIcon } from "lucide-react";
 import { effortLabels, useChatRunSettings } from "@/lib/chat-run-settings";
 import { cn } from "@/lib/utils";
 import { ComposerMenu, ComposerModelItem, ComposerModelTrigger } from "./composer";
 import { ReasoningEffort } from "./reasoning-effort";
 
 const SOURCE_OPTIONS = [
-  { key: "archive", label: "Archive", Icon: ArchiveIcon },
-  { key: "ocha", label: "OCHA", Icon: LibraryBigIcon },
+  { key: "archive", label: "Archive", Icon: PackageSearchIcon },
+  { key: "ocha", label: "OCHA", Icon: FileDatabaseIcon },
 ] as const;
 
 export function ChatComposerControls() {
@@ -42,7 +42,7 @@ export function ChatComposerControls() {
         <Popover.Root open={effortOpen} onOpenChange={setEffortOpen}>
           <Popover.Trigger
             type="button"
-            className="text-muted-foreground hover:bg-accent hover:text-foreground inline-flex h-8 items-center gap-1.5 rounded-full px-2.5 text-xs focus-visible:outline-ring"
+            className="text-muted-foreground hover:bg-accent hover:text-foreground inline-flex h-8 items-center gap-1.5 rounded-full px-2.5 text-xs font-normal focus-visible:outline-ring"
             aria-label={`Reasoning effort: ${effortLabels[effort]}`}
           >
             {effortLabels[effort]}
@@ -64,7 +64,7 @@ export function ChatComposerControls() {
           </Popover.Portal>
         </Popover.Root>
       )}
-      <div role="group" aria-label="Evidence sources" className="flex flex-wrap items-center gap-1">
+      <div role="group" aria-label="Evidence sources" className="flex flex-wrap items-center gap-2">
         {SOURCE_OPTIONS.map(({ key, label, Icon }) => (
           <button
             key={key}
@@ -72,13 +72,13 @@ export function ChatComposerControls() {
             aria-pressed={sources[key]}
             onClick={() => toggleSource(key)}
             className={cn(
-              "inline-flex h-8 items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium transition-colors focus-visible:outline-ring",
+              "inline-flex h-7 items-center gap-1 rounded-full border px-2 text-xs font-normal transition-colors focus-visible:outline-ring",
               sources[key]
                 ? "border-primary/25 bg-primary/8 text-foreground hover:bg-primary/12"
                 : "border-border text-muted-foreground hover:bg-accent",
             )}
           >
-            <Icon className="size-3.5" aria-hidden />
+            <Icon className="size-3" aria-hidden />
             {label}
           </button>
         ))}

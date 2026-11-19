@@ -41,7 +41,7 @@ type Coordinate = [lat: number, lng: number];
 
 const DEFAULT_TILE_URL = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
 
-const DEFAULT_ATTRIBUTION = "© OpenStreetMap contributors";
+const DEFAULT_ATTRIBUTION = '<a href="https://www.openstreetmap.org/copyright">© OpenStreetMap</a>';
 
 function isCoordinate(lat: number, lng: number) {
   return (
@@ -93,17 +93,11 @@ export function GeoMap({
     const validPlaces = places.filter((place) =>
       isCoordinate(place.lat, place.lng),
     );
-    const routePoints: Coordinate[] = [];
     const validRoutes =
       routes
-        ?.map((route) => {
-          const points = route.points
-            .filter(([lat, lng]) => isCoordinate(lat, lng))
-            .map(([lat, lng]) => [lat, lng] as Coordinate);
-          routePoints.push(...points);
-          return { ...route, points };
-        })
-        .filter((route) => route.points.length > 1) ?? [];
+        ?.filter((route) => route.points.length > 1 &&
+          route.points.every(([lat, lng]) => isCoordinate(lat, lng)))
+        .map((route) => ({ ...route, points: route.points.map(([lat, lng]) => [lat, lng] as Coordinate) })) ?? [];
 
     return {
       signature: JSON.stringify([
@@ -117,13 +111,11 @@ export function GeoMap({
         routes?.map((route) => [route.id, route.points]) ?? [],
       ]),
       validPlaces,
-      routePoints,
       validRoutes,
     };
   }, [places, routes]);
   const { signature: contentSignature, validPlaces } = mapContent;
   const mapContentRef = useRef(mapContent);
-  mapContentRef.current = mapContent;
   const resolvedTileUrl = tileUrl ?? DEFAULT_TILE_URL;
   const resolvedAttribution = attribution ?? DEFAULT_ATTRIBUTION;
   const [uncontrolledSelectedId, setUncontrolledSelectedId] = useState<
@@ -135,7 +127,6 @@ export function GeoMap({
       ? uncontrolledSelectedId
       : validPlaces[0]?.id);
   const activeIdRef = useRef(activeId);
-  activeIdRef.current = activeId;
 
   const selectPlace = useCallback(
     (place: GeoMapPlace) => {
@@ -146,7 +137,12 @@ export function GeoMap({
     [onSelect, selectedId],
   );
   const selectPlaceRef = useRef(selectPlace);
-  selectPlaceRef.current = selectPlace;
+
+  useEffect(() => {
+    mapContentRef.current = mapContent;
+    activeIdRef.current = activeId;
+    selectPlaceRef.current = selectPlace;
+  }, [activeId, mapContent, selectPlace]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -161,6 +157,7 @@ export function GeoMap({
 
       leafletRef.current = leaflet;
       map = leaflet.map(container, { keyboard: true });
+      map.attributionControl.setPrefix(false);
       mapRef.current = map;
 
       leaflet
@@ -181,22 +178,33 @@ export function GeoMap({
   useEffect(() => {
     const leaflet = leafletRef.current;
     const map = mapRef.current;
-    if (!leaflet || !map || !mapReady) return;
+    const container = containerRef.current;
+    if (!leaflet || !map || !container || !mapReady) return;
 
-    const { routePoints, validPlaces, validRoutes } = mapContentRef.current;
+    const { validPlaces, validRoutes } = mapContentRef.current;
+    const markers = markersRef.current;
     const layer = leaflet.layerGroup().addTo(map);
-    const points: Coordinate[] = [
+    const bounds = leaflet.latLngBounds([
       ...validPlaces.map((place) => [place.lat, place.lng] as Coordinate),
-      ...routePoints,
-    ];
-    const [first] = points;
-    if (points.length === 1 && first) {
-      map.setView(first, 13);
-    } else if (points.length > 1) {
-      map.fitBounds(leaflet.latLngBounds(points), { padding: [24, 24] });
-    } else {
-      map.setView([0, 0], 2);
-    }
+      ...validRoutes.flatMap((route) => route.points),
+    ]);
+    let lastWidth = 0;
+    let lastHeight = 0;
+    const fit = () => {
+      const { clientWidth: width, clientHeight: height } = container;
+      if (!width || !height || (width === lastWidth && height === lastHeight)) return;
+      lastWidth = width;
+      lastHeight = height;
+      map.invalidateSize({ pan: false });
+      if (bounds.isValid()) {
+        map.fitBounds(bounds, { padding: [24, 24], maxZoom: 13, animate: false });
+      } else {
+        map.setView([0, 0], 2);
+      }
+    };
+    fit();
+    const resize = new ResizeObserver(fit);
+    resize.observe(container);
 
     for (const route of validRoutes) {
       leaflet
@@ -215,11 +223,12 @@ export function GeoMap({
         })
         .addTo(layer)
         .on("click", () => selectPlaceRef.current(place));
-      markersRef.current.set(place.id, marker);
+      markers.set(place.id, marker);
     }
 
     return () => {
-      markersRef.current.clear();
+      resize.disconnect();
+      markers.clear();
       layer.remove();
     };
   }, [contentSignature, mapReady]);
@@ -240,7 +249,7 @@ export function GeoMap({
       data-slot="geo-map"
       className={cn(
         paper,
-        "flex w-full max-w-sm flex-col overflow-hidden rounded-2xl p-2",
+        "flex w-full min-w-0 max-w-sm flex-col overflow-hidden rounded-2xl p-2",
         className,
       )}
       {...props}
@@ -248,7 +257,7 @@ export function GeoMap({
       <div
         ref={containerRef}
         role="region"
-        aria-label={`Map of ${validPlaces.length} places`}
+        aria-label={mapContent.validRoutes.length ? "Map of places and routes" : `Map of ${validPlaces.length} places`}
         aria-busy={!mapReady || undefined}
         style={{ height }}
         data-theme={theme}
@@ -277,11 +286,11 @@ export function GeoMap({
                 aria-current={selected || undefined}
                 onClick={() => selectPlace(place)}
                 className={cn(
-                  "hover:bg-foreground/[0.035] focus-visible:ring-foreground/20 flex w-full items-start gap-3 rounded-lg px-2.5 py-2 text-start transition-colors outline-none focus-visible:ring-1",
+                  "hover:bg-foreground/[0.035] focus-visible:ring-foreground/20 flex w-full min-w-0 flex-wrap items-start gap-x-3 gap-y-1 rounded-lg px-2.5 py-2 text-start transition-colors outline-none focus-visible:ring-1",
                   selected && "bg-foreground/[0.06]",
                 )}
               >
-                <span className="min-w-0 flex-1">
+                <span className="min-w-0 grow basis-36">
                   <span className="text-foreground/90 block text-[13.5px] leading-5 break-words">
                     {place.label}
                   </span>
@@ -295,7 +304,7 @@ export function GeoMap({
                   data-slot="geo-map-coordinates"
                   className={cn(
                     mono,
-                    "text-muted-foreground shrink-0 pt-0.5 tabular-nums",
+                    "text-muted-foreground max-w-full shrink-0 pt-0.5 tabular-nums break-words",
                   )}
                 >
                   {place.lat.toFixed(4)}, {place.lng.toFixed(4)}

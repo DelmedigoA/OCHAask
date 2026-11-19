@@ -14,7 +14,7 @@ from ochask.chat import OCHA_TOOL_NAME, SOURCE_NAMES
 
 SourceName = Literal["archive", "ocha"]
 ReasoningEffort = Literal["low", "medium", "high"]
-LOCAL_TOOLS = {"search_location", "show_geo_map"}
+LOCAL_TOOLS = {"mapping", "search_location", "show_geo_map"}
 
 
 class Sources(BaseModel, extra="forbid"):

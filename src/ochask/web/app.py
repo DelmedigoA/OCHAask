@@ -8,7 +8,7 @@ import os
 from pathlib import Path
 from time import perf_counter
 from urllib.parse import urlsplit
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from starlette.applications import Starlette
 from starlette.concurrency import run_in_threadpool
@@ -210,13 +210,29 @@ async def agui_chat(request: Request) -> Response:
     except Exception:
         return JSONResponse({"error": "Invalid chat request"}, status_code=400)
 
-    from ag_ui.core import StateSnapshotEvent, UserMessage
+    from ag_ui.core import (
+        RunFinishedEvent,
+        RunStartedEvent,
+        StateSnapshotEvent,
+        TextMessageContentEvent,
+        TextMessageEndEvent,
+        TextMessageStartEvent,
+        UserMessage,
+    )
     from pydantic import ValidationError
     from pydantic_ai.models.openai import OpenAIResponsesModelSettings
     from pydantic_ai.usage import UsageLimits
     from pydantic_ai.ui.ag_ui import AGUIAdapter
 
-    from ochask.chat import LUNA_OUTPUT_BUDGET, SearchContext, agent, chat_model_config, configured_model
+    from ochask.chat import (
+        LUNA_OUTPUT_BUDGET,
+        SearchContext,
+        agent,
+        chat_model_config,
+        configured_model,
+        relevance_guard,
+    )
+    from ochask.guard import GUARDRAIL_MESSAGE, GUARD_UNAVAILABLE_MESSAGE
     from ochask.web.chat_options import ChatOptions, filter_history, run_tool_sources
 
     model = configured_model()
@@ -248,6 +264,57 @@ async def agui_chat(request: Request) -> Response:
     current_user = next(
         (message for message in reversed(history) if isinstance(message, UserMessage)), None,
     )
+
+    def message_text(message) -> str:
+        content = getattr(message, "content", "")
+        if isinstance(content, str):
+            return content
+        if isinstance(content, list):
+            return "\n".join(
+                part.get("text", "") if isinstance(part, dict) else getattr(part, "text", "")
+                for part in content
+                if isinstance(
+                    part.get("text", "") if isinstance(part, dict) else getattr(part, "text", ""),
+                    str,
+                )
+            )
+        return ""
+
+    if current_user is None:
+        return JSONResponse({"error": "A user message is required"}, status_code=400)
+
+    conversational_history = [
+        {"role": message.role, "text": message_text(message)[:1500]}
+        for message in history
+        if message.role in {"user", "assistant"} and message_text(message).strip()
+    ][-5:]
+    allowed, guard_unavailable = await relevance_guard.check(
+        message_text(current_user),
+        conversational_history[:-1],
+        options.enabled_sources,
+    )
+    if not allowed:
+        guardrail_text = (
+            GUARD_UNAVAILABLE_MESSAGE if guard_unavailable else GUARDRAIL_MESSAGE
+        )
+        guard_message_id = str(uuid4())
+        run_id = str(adapter.run_input.run_id)
+
+        async def guardrail_events():
+            yield RunStartedEvent(threadId=thread_id, runId=run_id)
+            yield TextMessageStartEvent(messageId=guard_message_id, role="assistant")
+            yield TextMessageContentEvent(messageId=guard_message_id, delta=guardrail_text)
+            yield TextMessageEndEvent(messageId=guard_message_id)
+            yield StateSnapshotEvent(snapshot={
+                "ochaskGuardrailMessageId": None if guard_unavailable else guard_message_id,
+                "ochaskSourceContext": {
+                    "userMessageId": current_user.id,
+                    "sources": [],
+                },
+            })
+            yield RunFinishedEvent(threadId=thread_id, runId=run_id)
+
+        return adapter.streaming_response(guardrail_events())
 
     async def record_sources(result):
         if current_user is not None:

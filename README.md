@@ -96,6 +96,44 @@ uv run --group bm25 pytest -q
 uv run --group bm25 python benchmark/retrieval.py
 ```
 
+## Bearing Witness project resources and document
+
+The **Archive** source includes the Bearing Witness archive MCP tools, a versioned
+snapshot of Bearing Witness project metadata and FAQs, and a separate indexed
+copy of the foundational English document. Metadata and FAQ snapshots come from
+the corresponding JSON files in the ArchiveLens project's `data/` directory.
+They are packaged with OCHAsk and do not refresh at runtime. Their source URLs
+and crawl dates are kept with the records; update the snapshots from ArchiveLens
+when those source records change. FAQ lookup uses BM25 over questions and
+answers, then reads the selected answer. These project records provide project
+context, not evidence for event claims.
+
+The document's extracted text and pages are stored in Supabase, separately from
+the OCHA report corpus. Apply
+[`supabase/migrations/20261118222814_bearing_witness_document_pages.sql`](supabase/migrations/20261118222814_bearing_witness_document_pages.sql)
+to the OCHAsk Supabase project, then index the extracted text supplied in
+ArchiveLens. Form-feed characters delimit physical pages, so blank pages are
+skipped while later page numbers remain accurate:
+
+```sh
+npx supabase login
+npx supabase link --project-ref YOUR_PROJECT_REF
+npx supabase db push
+uv run python -m ochask.bearing_witness_ingest \
+  /path/to/ArchiveLens/data/documents/bearing-witness/gaza-english-v6.7.0.txt \
+  --version v6.7.0 \
+  --source-url https://bearing-witness.com/bigger-picture/
+```
+
+Indexing replaces the document pages atomically for the configured embedding
+model. Search returns page excerpts and citations to the Bearing Witness
+document page; the chat does not embed or display the PDF. Embedding calls incur
+API usage. The guard checks whether each new request fits OCHAsk's OCHA and
+Bearing Witness scope before the answering model runs. It uses
+`OPENAI_CHAT_MODEL` by default; set
+`OCHASK_GUARD_MODEL` to use a separate model. Guard logs contain only the
+decision and score, not request text.
+
 ## OCHAsk research workspace
 
 The local workspace has three pages: **Corpus**, **Search**, and **Chat**.
@@ -123,9 +161,9 @@ tools and earlier evidence from future requests while keeping the transcript
 visible. At least one source is required to send. Linked evidence appears as
 inline citation previews and in the Sources panel below the answer.
 
-Chat defaults to GPT-6 Luna on the OpenAI Responses API. Choose Low, Medium,
-or High reasoning effort in the composer. To use a different model, set
-`OPENAI_CHAT_MODEL` in `.env`. Build the chat UI with npm.
+Chat defaults to GPT-6 Luna on the OpenAI Responses API with Light reasoning
+effort. Choose Medium or High in the composer for more deliberation. Set
+`OPENAI_CHAT_MODEL` in `.env` to use a different model. Build the chat UI with npm.
 
 ```sh
 cd frontend
@@ -141,3 +179,15 @@ uv run uvicorn ochask.web.app:app --host 127.0.0.1 --port 8000
 ```
 
 Open [http://127.0.0.1:8000/corpus](http://127.0.0.1:8000/corpus). The other pages are at `/search` and `/chat`. The Pydantic AI agent searches up to 30 chunks per tool call. Chat and semantic search make OpenAI API requests. Supabase credentials remain on the local backend and are never sent to the browser. The assistant-ui components are MIT licensed; see [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
+
+Ask chat to map named public places or existing named roads and paths. The
+`mapping` tool uses Nominatim search results for markers and draws route lines
+when Nominatim supplies line geometry. The map credits OpenStreetMap
+contributors. It does not calculate directions or verify current access.
+
+The public Nominatim service is for light, user-triggered lookups. Keep all
+local workers on the same `OCHASK_WORKSPACE_DB_PATH` so they share cached results
+and the one-request-per-second limit. Set `OCHASK_NOMINATIM_SEARCH_URL` to switch
+providers and `OCHASK_NOMINATIM_USER_AGENT` to identify the application. Avoid
+personal or confidential inputs, autocomplete, and systematic lookups. See the
+[Nominatim usage policy](https://operations.osmfoundation.org/policies/nominatim/).

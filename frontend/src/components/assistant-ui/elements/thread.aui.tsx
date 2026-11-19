@@ -9,6 +9,7 @@ import { ComposerActions, ComposerBar, ComposerToolbar } from "@/components/assi
 import { File, getFileHref } from "@/components/assistant-ui/elements/file";
 import { ThreadFollowupSuggestions } from "@/components/assistant-ui/elements/follow-up-suggestions.aui";
 import { GeoMapToolCall } from "@/components/assistant-ui/elements/geo-map-tool-call";
+import { GuardrailNotice } from "@/components/assistant-ui/elements/guardrail-notice";
 import { Image } from "@/components/assistant-ui/elements/image";
 import {
   Reasoning,
@@ -111,6 +112,9 @@ const defaultMessageGroupBy = groupPartByType({
 type MessagePart = Parameters<typeof defaultMessageGroupBy>[0];
 type ToolPart = Extract<MessagePart, { type: "tool-call" }>;
 
+const isMapTool = (name: string) => name === "mapping" || name === "show_geo_map";
+const MAPPING_PROGRESS = "Mapping...";
+
 const needsToolInput = (part: ToolPart) =>
   part.status.type === "requires-action" || part.approval != null || part.interrupt != null;
 
@@ -122,17 +126,24 @@ function isHiddenToolCall(
   if (part.type !== "tool-call") return false;
   if (part.toolName === "search_location") return true;
   return !needsToolInput(part) &&
-    (part.toolName !== "show_geo_map" || part.status.type === "running") &&
+    (!isMapTool(part.toolName) || part.status.type === "running") &&
     !(showTasks && part.messages !== undefined) &&
     !part.mcp?.app?.resourceUri &&
     !toolUIs?.[part.toolName]?.length;
 }
 
 const toolProgressLabels = new Map([
-  ["search_report_evidence", "Searching OCHA reports"],
+  ["search_ocha_corpus", "Searching OCHA reports"],
+  ["search_bearing_witness_document", "Searching the Bearing Witness document"],
+  ["read_bearing_witness_pages", "Reading Bearing Witness pages"],
+  ["search_faqs", "Searching Bearing Witness FAQs"],
+  ["read_faq", "Reading a Bearing Witness FAQ"],
+  ["list_project_metadata_records", "Checking Bearing Witness project information"],
+  ["read_project_metadata_record", "Reading Bearing Witness project information"],
   ["search_archive", "Searching the archive"],
   ["lookup_url", "Checking the archive"],
   ["request_archiving", "Requesting archiving"],
+  ["mapping", MAPPING_PROGRESS],
   ["show_geo_map", "Preparing interactive map"],
 ]);
 
@@ -176,7 +187,7 @@ function useVisibleThinkingLabel(label: string | undefined) {
     }
 
     const previous = lastProgress.current;
-    if (previous) {
+    if (previous && previous.label !== MAPPING_PROGRESS) {
       const remaining = MIN_PROGRESS_LABEL_MS - (Date.now() - previous.startedAt);
       if (remaining > 0) {
         setVisibleLabel(previous.label);
@@ -519,7 +530,7 @@ const ThreadWelcome: FC = () => {
         OCHAsk
       </p>
       <p className="aui-thread-welcome-message-inner mx-auto mt-3 w-full max-w-md text-center text-sm leading-6 text-muted-foreground sm:text-base">
-        Explore evidence across OCHA humanitarian reports and the Bearing Witness archive.
+        Explore OCHA humanitarian reports and the Bearing Witness archive, foundational document, and project information.
       </p>
     </div>
   );
@@ -565,7 +576,7 @@ const Composer: FC<ComposerProps> = ({ autoFocus }) => {
     >
       <ComposerBar className="gap-1 rounded-2xl border border-input bg-background p-2 focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/20">
         <ComposerPrimitive.Input
-          placeholder="Ask a question about OCHA reports or the archive…"
+          placeholder="Ask about OCHA reports or Bearing Witness…"
           className="aui-composer-input max-h-48 min-h-20 w-full resize-none bg-transparent px-3 pt-2 text-base leading-6 outline-none placeholder:text-muted-foreground/60"
           rows={2}
           autoFocus={autoFocus}
@@ -666,6 +677,11 @@ const AssistantMessage: FC = () => {
   } = useContext(ThreadComponentsContext);
   const groupBy = TaskGroupComponent ? taskAwareGroupBy : messageGroupBy;
   const toolUIs = useAuiState((s) => s.tools.toolUIs);
+  const isScopeRefusal = useAuiState((s) => {
+    const state = s.message.metadata.unstable_state;
+    return state !== null && typeof state === "object" &&
+      "ochaskGuardrailMessageId" in state && state.ochaskGuardrailMessageId === s.message.id;
+  });
   const isHiddenToolMessage = useAuiState(
     (s) => s.message.parts.length > 0 &&
       s.message.parts.every((part) => isHiddenToolCall(part, s.tools.toolUIs, Boolean(TaskGroupComponent))) &&
@@ -678,7 +694,7 @@ const AssistantMessage: FC = () => {
     <MessagePrimitive.Root
       data-slot="aui_assistant-message-root"
       data-role="assistant"
-      className="fade-in slide-in-from-bottom-1 animate-in relative duration-150 [contain-intrinsic-size:auto_200px] [content-visibility:auto]"
+      className="fade-in slide-in-from-bottom-1 animate-in relative min-w-0 duration-150 [contain-intrinsic-size:auto_200px] [content-visibility:auto]"
     >
       <div
         data-slot="aui_assistant-message-content"
@@ -720,12 +736,20 @@ const AssistantMessage: FC = () => {
                   );
                 }
                 case "text":
-                  return <AnswerMarkdown />;
+                  return isScopeRefusal ? (
+                    <GuardrailNotice
+                      role="status"
+                      title="Outside OCHAsk’s scope"
+                      explanation={part.text}
+                      policy="Topic scope"
+                      alternatives={[]}
+                    />
+                  ) : <AnswerMarkdown />;
                 case "reasoning":
                   return <Reasoning {...part} />;
                 case "tool-call":
                   if (isHiddenToolCall(part, toolUIs)) return null;
-                  if (part.toolName === "show_geo_map") {
+                  if (isMapTool(part.toolName)) {
                     return <GeoMapToolCall {...part} />;
                   }
                   if (part.toolUI) return part.toolUI;

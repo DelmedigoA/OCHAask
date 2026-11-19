@@ -1,13 +1,20 @@
 "use client";
 
 import type { ToolCallMessagePartComponent } from "@assistant-ui/react";
+import { useMemo } from "react";
 import { GeoMap, type GeoMapPlace, type GeoMapRoute } from "./geo-map";
 import { ToolFallback } from "./tool-fallback.aui";
 
 type GeoMapResult = {
   places: GeoMapPlace[];
-  routes?: GeoMapRoute[];
+  routes: GeoMapRoute[];
 };
+
+const tileUrl = import.meta.env.VITE_OCHASK_MAP_TILE_URL?.trim() || undefined;
+const tileCredit = import.meta.env.VITE_OCHASK_MAP_ATTRIBUTION?.trim();
+const attribution = tileCredit && !["© OpenStreetMap", "© OpenStreetMap contributors"].includes(tileCredit)
+  ? `${tileCredit} | <a href="https://www.openstreetmap.org/copyright">© OpenStreetMap</a>`
+  : undefined;
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return typeof value === "object" && value !== null
@@ -86,11 +93,9 @@ function parseGeoMapResult(value: unknown): GeoMapResult | null {
     const parsedPlace = parsePlace(place);
     return parsedPlace ? [parsedPlace] : [];
   });
-  if (places.length === 0) return null;
-
   const routes = Array.isArray(result.routes)
     ? result.routes.filter(isRoute)
-    : undefined;
+    : [];
 
   return { places, routes };
 }
@@ -98,8 +103,8 @@ function parseGeoMapResult(value: unknown): GeoMapResult | null {
 export const GeoMapToolCall: ToolCallMessagePartComponent<unknown, unknown> = (
   props,
 ) => {
+  const result = useMemo(() => parseGeoMapResult(props.result), [props.result]);
   if (
-    props.toolName !== "show_geo_map" ||
     props.status.type === "requires-action" ||
     props.approval != null ||
     props.interrupt != null
@@ -107,27 +112,25 @@ export const GeoMapToolCall: ToolCallMessagePartComponent<unknown, unknown> = (
     return <ToolFallback {...props} />;
   }
 
-  if (props.status.type === "running") {
-    return (
-      <p role="status" className="text-muted-foreground py-2 text-sm">
-        Preparing interactive map…
-      </p>
-    );
-  }
-
+  if (props.status.type === "running") return null;
   if (props.status.type === "incomplete" || props.isError) {
     return <ToolFallback {...props} />;
   }
 
-  const result = parseGeoMapResult(props.result);
   if (!result) return <ToolFallback {...props} />;
+  if (result.places.length === 0 && result.routes.length === 0) {
+    return <p className="text-muted-foreground py-2 text-sm">No locations or routes to display.</p>;
+  }
 
   return (
     <GeoMap
       data-slot="geo-map-tool-result"
       places={result.places}
       routes={result.routes}
-      className="max-w-none"
+      height={320}
+      tileUrl={tileUrl}
+      attribution={attribution}
+      className="min-w-0 max-w-full"
     />
   );
 };

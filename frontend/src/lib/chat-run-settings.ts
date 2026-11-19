@@ -6,7 +6,7 @@ export type SourceSelection = Record<SourceName, boolean>;
 export type ReasoningEffort = "low" | "medium" | "high";
 
 export const effortLabels: Record<ReasoningEffort, string> = {
-  low: "Low",
+  low: "Light",
   medium: "Medium",
   high: "High",
 };
