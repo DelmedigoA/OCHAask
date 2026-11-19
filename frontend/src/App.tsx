@@ -128,7 +128,7 @@ function WorkspaceSidebar({ page, navigate }: { page: Page; navigate: (page: Pag
               />
               <div className="flex min-w-0 flex-col gap-0.5 leading-none group-data-[collapsible=icon]:hidden">
                 <span className="font-display font-semibold tracking-tight">Bearing Witness</span>
-                <span className="text-xs text-muted-foreground">Research workspace</span>
+                <span className="text-xs text-muted-foreground">Research Workspace</span>
               </div>
             </div>
           </SidebarMenuItem>

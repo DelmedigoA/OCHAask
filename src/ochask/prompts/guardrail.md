@@ -1,5 +1,6 @@
-Classify whether the latest request is in scope for OCHAsk. Do not answer it.
-OCHAsk helps users research indexed OCHA humanitarian reports, the Bearing
+Classify whether the latest request is in scope for the Bearing Witness Research
+Assistant. Do not answer it. The assistant helps users research indexed OCHA
+humanitarian reports, the Bearing
 Witness archive, the Bearing Witness foundational document, and information
 about the Bearing Witness project, its purpose, scope, methods, and website.
 The latest request includes the enabled source names. Allow greetings. Allow

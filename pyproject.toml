@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "ochask"
 version = "0.1.0"
-description = "Add your description here"
+description = "Bearing Witness Research Workspace for OCHA reports and project archives"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [

@@ -1,6 +1,6 @@
-# OCHAsk landing-page scraper
+# Bearing Witness Research Workspace
 
-The scraper extracts structured metadata from ReliefWeb landing pages. Its PDF download mode selects one English attachment per landing page and uses text extraction only when the language label is unclear.
+The workspace includes an OCHA landing-page scraper. It extracts structured metadata from ReliefWeb landing pages. Its PDF download mode selects one English attachment per page and uses text extraction when the language label is unclear.
 
 ## Run
 
@@ -102,7 +102,7 @@ The **Archive** source includes the Bearing Witness archive MCP tools, a version
 snapshot of Bearing Witness project metadata and FAQs, and a separate indexed
 copy of the foundational English document. Metadata and FAQ snapshots come from
 the corresponding JSON files in the ArchiveLens project's `data/` directory.
-They are packaged with OCHAsk and do not refresh at runtime. Their source URLs
+They are packaged with the workspace and do not refresh at runtime. Their source URLs
 and crawl dates are kept with the records; update the snapshots from ArchiveLens
 when those source records change. FAQ lookup uses BM25 over questions and
 answers, then reads the selected answer. These project records provide project
@@ -111,7 +111,7 @@ context, not evidence for event claims.
 The document's extracted text and pages are stored in Supabase, separately from
 the OCHA report corpus. Apply
 [`supabase/migrations/20261118222814_bearing_witness_document_pages.sql`](supabase/migrations/20261118222814_bearing_witness_document_pages.sql)
-to the OCHAsk Supabase project, then index the extracted text supplied in
+to the configured Supabase project, then index the extracted text supplied in
 ArchiveLens. Form-feed characters delimit physical pages, so blank pages are
 skipped while later page numbers remain accurate:
 
@@ -128,13 +128,13 @@ uv run python -m ochask.bearing_witness_ingest \
 Indexing replaces the document pages atomically for the configured embedding
 model. Search returns page excerpts and citations to the Bearing Witness
 document page; the chat does not embed or display the PDF. Embedding calls incur
-API usage. The guard checks whether each new request fits OCHAsk's OCHA and
+API usage. The guard checks whether each new request fits the workspace's OCHA and
 Bearing Witness scope before the answering model runs. It uses
 `OPENAI_CHAT_MODEL` by default; set
 `OCHASK_GUARD_MODEL` to use a separate model. Guard logs contain only the
 decision and score, not request text.
 
-## OCHAsk research workspace
+## Research workspace
 
 The local workspace has three pages: **Corpus**, **Search**, and **Chat**.
 Corpus reads report metadata and indexed chunk records from Supabase. Its token

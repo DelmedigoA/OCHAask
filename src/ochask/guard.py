@@ -1,4 +1,4 @@
-"""Structured relevance guard for OCHAsk chat requests."""
+"""Structured relevance guard for the Bearing Witness Research Assistant."""
 
 from __future__ import annotations
 
@@ -74,12 +74,12 @@ class RelevanceGuard:
             )
             decision = GuardDecision.model_validate(result.output)
         except Exception as exc:
-            logger.warning("OCHAsk relevance check unavailable: %s", type(exc).__name__)
+            logger.warning("Bearing Witness relevance check unavailable: %s", type(exc).__name__)
             return False, True
 
         allowed = decision.continue_ and decision.relevance >= self.relevance_threshold
         logger.info(
-            "OCHAsk relevance check completed: allowed=%s relevance=%d",
+            "Bearing Witness relevance check completed: allowed=%s relevance=%d",
             allowed,
             decision.relevance,
         )

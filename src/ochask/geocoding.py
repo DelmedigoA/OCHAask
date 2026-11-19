@@ -15,7 +15,7 @@ from pydantic import Field, StringConstraints
 
 _MIN_REQUEST_INTERVAL = 1.0
 _DEFAULT_SEARCH_URL = "https://nominatim.openstreetmap.org/search"
-_DEFAULT_USER_AGENT = "OCHAsk/0.1 (OCHA humanitarian report research workspace)"
+_DEFAULT_USER_AGENT = "Bearing Witness Research Assistant/0.1 (OCHA and archive research workspace)"
 _PlaceName = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=160)]
 
 

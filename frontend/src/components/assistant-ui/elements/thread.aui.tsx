@@ -527,10 +527,10 @@ const ThreadWelcome: FC = () => {
   return (
     <div className="aui-thread-welcome-root mb-6 flex w-full flex-col items-center px-2 text-center">
       <p className="fade-in slide-in-from-bottom-1 animate-in fill-mode-both text-4xl font-semibold tracking-[-0.05em] duration-200 sm:text-5xl">
-        OCHAsk
+        Bearing Witness Research Assistant
       </p>
       <p className="aui-thread-welcome-message-inner mx-auto mt-3 w-full max-w-md text-center text-sm leading-6 text-muted-foreground sm:text-base">
-        Explore OCHA humanitarian reports and the Bearing Witness archive, foundational document, and project information.
+        Ask about the Bearing Witness project, its data, OCHA reports, and the archive.
       </p>
     </div>
   );
@@ -739,7 +739,7 @@ const AssistantMessage: FC = () => {
                   return isScopeRefusal ? (
                     <GuardrailNotice
                       role="status"
-                      title="Outside OCHAsk’s scope"
+                      title="Outside the Bearing Witness Research Assistant’s scope"
                       explanation={part.text}
                       policy="Topic scope"
                       alternatives={[]}

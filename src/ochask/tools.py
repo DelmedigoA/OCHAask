@@ -1,4 +1,4 @@
-"""Tool definitions and toolsets available to the OCHAsk chat agent."""
+"""Tool definitions and toolsets for the Bearing Witness Research Assistant."""
 
 from __future__ import annotations
 
@@ -49,7 +49,7 @@ class SearchContext:
 
 @dataclass
 class OptionalArchiveToolset(WrapperToolset[SearchContext]):
-    """Keep archive MCP outages from taking down OCHAsk report chat."""
+    """Keep archive MCP outages from taking down report research."""
 
     _available: ContextVar[bool] = field(
         default_factory=lambda: ContextVar("archive_available", default=False)

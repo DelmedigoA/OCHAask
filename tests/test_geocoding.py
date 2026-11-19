@@ -20,13 +20,13 @@ def response(items):
 
 def test_mapping_uses_only_geocoded_points_and_route_lines(monkeypatch, tmp_path):
     monkeypatch.setenv("OCHASK_WORKSPACE_DB_PATH", str(tmp_path / "cache.sqlite3"))
-    monkeypatch.setenv("OCHASK_NOMINATIM_USER_AGENT", "OCHAsk Integration Test")
+    monkeypatch.setenv("OCHASK_NOMINATIM_USER_AGENT", "Bearing Witness Research Assistant Test")
     monkeypatch.setattr(geocoding, "_MIN_REQUEST_INTERVAL", 0)
     calls = []
 
     def get(_url, *, params, headers, allow_redirects, **kwargs):
         calls.append(params["q"])
-        assert headers["User-Agent"] == "OCHAsk Integration Test"
+        assert headers["User-Agent"] == "Bearing Witness Research Assistant Test"
         assert allow_redirects is False
         if params["q"] == "Bike trail":
             assert params["polygon_geojson"] == 1

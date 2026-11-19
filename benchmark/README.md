@@ -1,4 +1,4 @@
-# OCHAsk RAG benchmark
+# Bearing Witness Research Workspace retrieval benchmark
 
 ## Retrieval comparison
 
@@ -10,11 +10,11 @@ Latency covers warm retrieval, including the live Supabase request, and excludes
 
 ## Question and answer dataset
 
-The fixed English dataset contains ten questions built from physical, 1-based pages of the linked PDFs, independent of OCHAsk. Each evidence record records the source URL and SHA-256 of the downloaded PDF. Document IDs refer to `data/ocha_situation_reports_urls.csv`; the presence of an ID in that CSV does **not** establish that the report has been indexed. Ellipses in excerpts indicate omitted text. Re-download a PDF and check its hash before using its excerpts as evidence; if an upstream PDF changes, verify the original before revising and versioning the dataset. V02 is scoped to one report and tests the report's explicit statement that the requested figure is unavailable.
+The fixed English dataset contains ten questions built from physical, 1-based pages of the linked PDFs, independent of the workspace's retrieval code. Each evidence record records the source URL and SHA-256 of the downloaded PDF. Document IDs refer to `data/ocha_situation_reports_urls.csv`; the presence of an ID in that CSV does **not** establish that the report has been indexed. Ellipses in excerpts indicate omitted text. Re-download a PDF and check its hash before using its excerpts as evidence; if an upstream PDF changes, verify the original before revising and versioning the dataset. V02 is scoped to one report and tests the report's explicit statement that the requested figure is unavailable.
 
 ### Answer-generation runner
 
-`benchmark/run.py` is a separate end-to-end evaluation runner. It supplies a judge rubric and validation and expects external retrieval/answer and judge adapters. The retrieval comparison above uses OCHAsk's search code directly and does not require those adapters.
+`benchmark/run.py` is a separate end-to-end evaluation runner. It supplies a judge rubric and validation and expects external retrieval/answer and judge adapters. The retrieval comparison above uses the workspace's search code directly and does not require those adapters.
 
 ## Execution
 

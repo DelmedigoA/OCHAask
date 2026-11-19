@@ -60,7 +60,7 @@ def aggregate(items):
 
 
 def report(result):
-    lines = ['# OCHAsk benchmark', '', f"Dataset: {result['dataset_version']} (`{result['dataset_sha256']}`)", f"Run: {result['created_at']}", '', '| Group | Scored / total | Correctness | Faithfulness | Citation | Retrieval coverage | Abstention |', '|---|---:|---:|---:|---:|---:|---:|']
+    lines = ['# Bearing Witness Research Workspace benchmark', '', f"Dataset: {result['dataset_version']} (`{result['dataset_sha256']}`)", f"Run: {result['created_at']}", '', '| Group | Scored / total | Correctness | Faithfulness | Citation | Retrieval coverage | Abstention |', '|---|---:|---:|---:|---:|---:|---:|']
     for group, v in result['aggregates'].items():
         def fmt(x): return 'N/A' if x is None else str(x)
         lines.append(f"| {group} | {v['scored']} / {v['total']} | {fmt(v['correctness'])} | {fmt(v['faithfulness'])} | {fmt(v['citation_quality'])} | {fmt(v['retrieval_coverage'])} | {fmt(v['abstention_accuracy'])} |")

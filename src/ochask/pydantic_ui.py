@@ -1,4 +1,4 @@
-"""Expose the OCHAsk Pydantic AI agent through Pydantic's built-in web chat UI."""
+"""Expose the Bearing Witness Research Assistant through Pydantic's web chat UI."""
 
 from .chat import SearchContext, agent
 
