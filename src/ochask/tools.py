@@ -26,6 +26,43 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 SOURCE_NAMES = frozenset({"archive", "ocha"})
 OCHA_TOOL_NAME = "search_ocha_corpus"
+ARCHIVE_SEARCH_TOOLS = frozenset({"search_archive", "lookup_url"})
+OCHA_PROVENANCE_FIELDS = ("platform", "author", "url", "page_url")
+
+
+def _is_ocha_provenance(item: object) -> bool:
+    """Return True when an archive item is an OCHA document or archived copy."""
+    if not isinstance(item, dict):
+        return False
+    haystack = " ".join(
+        str(item.get(field, "")) for field in OCHA_PROVENANCE_FIELDS
+    ).lower()
+    return "ocha" in haystack or "ochaopt.org" in haystack
+
+
+def _filter_ocha_payload(payload):
+    """Remove OCHA-provenance items from an archive search result.
+
+    The archive indexes copies of OCHA documents. When the OCHA source is
+    disabled those copies must not contribute evidence, so they are dropped
+    before the model sees the result.
+    """
+    if isinstance(payload, list):
+        return [item for item in payload if not _is_ocha_provenance(item)]
+    if not isinstance(payload, dict):
+        return payload
+    if _is_ocha_provenance(payload):
+        return {"error": "This archived item belongs to the disabled OCHA source."}
+    cataloged = payload.get("cataloged")
+    if isinstance(cataloged, dict) and isinstance(cataloged.get("hits"), list):
+        hits = cataloged["hits"]
+        filtered = [item for item in hits if not _is_ocha_provenance(item)]
+        return {**payload, "cataloged": {**cataloged, "hits": filtered}}
+    hits = payload.get("hits")
+    if isinstance(hits, list):
+        filtered = [item for item in hits if not _is_ocha_provenance(item)]
+        return {**payload, "hits": filtered}
+    return payload
 
 
 def archive_mcp_endpoint() -> str:
@@ -95,6 +132,17 @@ class OptionalArchiveToolset(WrapperToolset[SearchContext]):
                 type(exc).__name__,
             )
             return {}
+
+    async def call_tool(
+        self, name: str, tool_args: dict, ctx: RunContext[SearchContext],
+        tool: ToolsetTool[SearchContext],
+    ):
+        result = await super().call_tool(name, tool_args, ctx, tool)
+        deps = getattr(ctx, "deps", None)
+        enabled = getattr(deps, "enabled_sources", None) if deps is not None else None
+        if enabled is not None and "ocha" not in enabled and name in ARCHIVE_SEARCH_TOOLS:
+            result = _filter_ocha_payload(result)
+        return result
 
 
 archive_toolset = OptionalArchiveToolset(
