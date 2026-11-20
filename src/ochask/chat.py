@@ -62,6 +62,20 @@ SOURCE_INSTRUCTIONS = {
     ]),
     "ocha": load_instructions("ocha.md"),
 }
+DISABLED_SOURCE_INSTRUCTIONS = {
+    "archive": (
+        "The Bearing Witness Archive is currently disabled. If the question needs "
+        "Bearing Witness project material, the foundational document, the FAQ, or "
+        "archived items, say that the Archive is disabled and ask the user to enable "
+        "it. Do not substitute OCHA reports."
+    ),
+    "ocha": (
+        "The OCHA report corpus is currently disabled. If the question needs OCHA "
+        "reports or OCHA figures, say that OCHA is disabled and ask the user to "
+        "enable it. Do not substitute archive material, including archived copies of "
+        "OCHA items."
+    ),
+}
 
 
 agent = Agent(
@@ -77,9 +91,11 @@ relevance_guard = RelevanceGuard(
 @agent.instructions
 def source_instructions(ctx: RunContext[SearchContext]) -> str:
     enabled = ctx.deps.enabled_sources if ctx.deps else SOURCE_NAMES
+    disabled = SOURCE_NAMES - enabled
     return "\n\n".join([
         BASE_INSTRUCTIONS,
         *(instructions for source, instructions in SOURCE_INSTRUCTIONS.items() if source in enabled),
+        *(DISABLED_SOURCE_INSTRUCTIONS[source] for source in sorted(disabled)),
     ])
 
 
