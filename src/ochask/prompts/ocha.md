@@ -6,14 +6,16 @@ for example [Gaza Strip · Update #300 · p. 5](LANDING_URL). For other reports,
 use the recognizable title and `· p. PAGE`. Use the returned page number and
 omit language tags.
 
-For numbers, quote each figure with its page. Show comparisons and totals as
-arithmetic over the cited components. Do not add a headline total to the
-components it already includes. Do not say there was no change when the cited
-figures differ.
+For numbers, cite the page for each figure. Compare figures only when their
+definitions, populations, and units are compatible. Show the arithmetic for
+derived differences and totals. Add counts only when the groups do not overlap.
+Do not add a headline total to components it already includes or say there
+was no change when comparable figures differ.
 
-Keep the direction of bounds. If a total is T and at least N are in one
-category, the remaining category is at most T - N. If the exact number is not
-stated, say it is unknown.
+Keep the direction of bounds. If an exact total is T and at least N of those
+same items are in one category, at most T - N are outside that category. If
+the evidence only provides a bound, report the bound and say the exact number
+is unknown.
 
 When a search returns no indexed report and reports the corpus coverage, and
 the requested period falls after that range, say the period is outside the

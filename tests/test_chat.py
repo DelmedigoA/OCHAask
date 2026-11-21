@@ -43,13 +43,20 @@ def test_search_tool_requests_up_to_30_chunks(chat, monkeypatch):
 def test_zero_result_filtered_search_reports_corpus_coverage(chat, monkeypatch):
     from ochask.web.app import app
     from pydantic_ai.messages import ToolReturnPart
+    from ochask.config import Settings
 
     monkeypatch.setattr(chat, "search", lambda query, **kwargs: [])
-    monkeypatch.setattr(
-        chat.tools,
-        "_indexed_coverage",
-        lambda: {"publication_start": "2023-10-07", "publication_end": "2026-10-05"},
-    )
+    monkeypatch.setattr(Settings, "from_environment", lambda: Settings("https://example.test", "key", "model"))
+    reads = []
+
+    def read_rows(_url, _key, table, *, select, filters):
+        reads.append((table, select, filters))
+        return [
+            {"originally_published": "2023-10-07", "posted": "2023-10-08"},
+            {"originally_published": None, "posted": "2026-10-05T10:00:00+00:00"},
+        ]
+
+    monkeypatch.setattr(chat.tools, "rest_rows", read_rows)
     returns = []
 
     async def respond(messages, _info):
@@ -75,8 +82,14 @@ def test_zero_result_filtered_search_reports_corpus_coverage(chat, monkeypatch):
     assert returns
     payload = returns[-1]
     assert payload["results"] == []
-    assert payload["corpus_coverage"]["publication_end"] == "2026-10-05"
+    assert payload["corpus_coverage"] == {"publication_start": "2023-10-07", "publication_end": "2026-10-05"}
     assert "outside the indexed corpus" in payload["note"]
+    assert len(reads) == 1
+    table, select, filters = reads[0]
+    assert table == "report_landings"
+    assert "report_embeddings!inner()" in select
+    assert filters["report_embeddings.embedding_model"] == "eq.model"
+    assert filters["report_embeddings.chunk_id"] == filters["report_embeddings.embedding"] == "not.is.null"
 
 
 def test_agent_has_bearing_witness_mcp_toolset(chat):
@@ -265,8 +278,10 @@ def test_archive_search_filters_ocha_items_only_when_ocha_disabled(
             {
                 "item_id": 2,
                 "platform": "Human Rights Watch",
-                "url": "https://www.hrw.org/news/2025/08/01/gaza-israeli-killings",
+                "url": "https://www.hrw.org/news/2025/08/01/rights-in-focus?ref=ocha",
             },
+        ]}, "unindexed": {"total": 1, "hits": [
+            {"item_id": 3, "url": "https://www.unocha.org/example", "snippet": "OCHA evidence"},
         ]}}
 
     fake_archive = chat.OptionalArchiveToolset(FunctionToolset([search_archive]))
@@ -286,7 +301,7 @@ def test_archive_search_filters_ocha_items_only_when_ocha_disabled(
 
     with chat.agent.override(model=StreamingModel(stream_function=respond)):
         with TestClient(app, base_url="http://localhost") as client:
-            stream_events(post_run(
+            events = stream_events(post_run(
                 client,
                 [{"id": "question", "role": "user", "content": "How many trucks?"}],
                 {"sources": {"archive": True, "ocha": ocha}},
@@ -295,6 +310,40 @@ def test_archive_search_filters_ocha_items_only_when_ocha_disabled(
     assert results
     hits = results[0]["cataloged"]["hits"]
     assert [hit["item_id"] for hit in hits] == expected_ids
+    assert bool(results[0]["unindexed"]["hits"]) == ocha
+    assert ("total" in results[0]["cataloged"]) == ocha
+    sources, = [event["snapshot"]["ochaskSourceContext"]["sources"]
+                for event in events if event["type"] == "STATE_SNAPSHOT"]
+    assert sources == (["archive", "ocha"] if ocha else ["archive"])
+
+
+def test_archive_lookup_filters_nested_ocha_record(chat):
+    result = chat.tools._filter_ocha_payload({
+        "url": "https://reliefweb.int/report/example",
+        "in_archive": True,
+        "record": {"author": "UN Office for the Coordination of Humanitarian Affairs", "description": "Evidence"},
+    })
+    assert result == {"error": "This archived item belongs to the disabled OCHA source."}
+
+
+def test_archive_history_with_ocha_records_is_dropped_when_ocha_is_disabled(chat):
+    from ag_ui.core import AssistantMessage, FunctionCall, ToolCall, ToolMessage, UserMessage
+    from ochask.web.chat_options import ChatOptions, filter_history
+
+    question = UserMessage(id="q1", content="First question")
+    call = AssistantMessage(id="a1", tool_calls=[ToolCall(
+        id="call", function=FunctionCall(name="search_archive", arguments="{}"),
+    )])
+    tool = ToolMessage(id="t1", tool_call_id="call", content=json.dumps({
+        "unindexed": {"hits": [{"url": "https://ochaopt.org/example"}]},
+    }))
+    answer = AssistantMessage(id="a2", content="OCHA answer")
+    options = ChatOptions(
+        sources={"archive": True, "ocha": False}, priorTurnSources={"q1": {"archive"}},
+    )
+    retained, sources = filter_history([question, call, tool, answer], options)
+    assert retained == [question]
+    assert not sources
 
 
 @pytest.mark.parametrize(
@@ -461,7 +510,7 @@ def test_disabled_source_history_and_new_single_source_turn(chat, monkeypatch):
         {"id": "q2", "role": "user", "content": "Earlier follow-up"},
         {"id": "answer2", "role": "assistant", "content": "Derived from previous answer"},
     ]
-    monkeypatch.setattr(chat, "search_reports", lambda *args, **kwargs: [])
+    monkeypatch.setattr(chat, "search", lambda *args, **kwargs: [])
 
     async def respond(messages, info):
         inspected_history.append(ModelMessagesTypeAdapter.dump_json(messages).decode())

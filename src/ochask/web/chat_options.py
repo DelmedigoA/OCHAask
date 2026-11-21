@@ -2,15 +2,17 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Sequence
 from itertools import groupby
 from typing import Literal
 
 from ag_ui.core import AssistantMessage, Message, ToolMessage, UserMessage
 from pydantic import BaseModel, Field, StrictBool
-from pydantic_ai.messages import ModelMessage, ModelResponse, ToolCallPart
+from pydantic_ai.messages import ModelMessage, ModelRequest, ModelResponse, ToolCallPart, ToolReturnPart
 
 from ochask.chat import OCHA_TOOL_NAME, SOURCE_NAMES
+from ochask.tools import ARCHIVE_RECORD_TOOLS, has_ocha_archive_records
 
 SourceName = Literal["archive", "ocha"]
 ReasoningEffort = Literal["low", "medium", "high"]
@@ -71,6 +73,15 @@ def filter_history(
         dependencies = {
             source for name in calls.values() if (source := tool_source(name)) is not None
         }
+        for message in turn:
+            if not isinstance(message, ToolMessage) or calls.get(message.tool_call_id) not in ARCHIVE_RECORD_TOOLS:
+                continue
+            try:
+                payload = json.loads(message.content)
+            except (TypeError, ValueError):
+                continue
+            if has_ocha_archive_records(payload):
+                dependencies.add("ocha")
         recorded = options.priorTurnSources.get(user_id) if user_id else None
         if recorded is not None:
             dependencies.update(recorded)
@@ -92,9 +103,18 @@ def filter_history(
 
 
 def run_tool_sources(messages: Sequence[ModelMessage]) -> set[SourceName]:
-    return {
+    sources = {
         source
         for message in messages if isinstance(message, ModelResponse)
         for part in message.parts if isinstance(part, ToolCallPart)
         if (source := tool_source(part.tool_name)) is not None
     }
+    if any(
+        isinstance(part, ToolReturnPart)
+        and part.tool_name in ARCHIVE_RECORD_TOOLS
+        and has_ocha_archive_records(part.content)
+        for message in messages if isinstance(message, ModelRequest)
+        for part in message.parts
+    ):
+        sources.add("ocha")
+    return sources

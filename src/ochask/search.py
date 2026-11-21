@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import json
-import logging
 import math
 import re
+import unicodedata
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date
 from typing import TypedDict
@@ -15,9 +15,6 @@ from openai import OpenAI
 from .config import Settings
 from .database import rest_rows, rpc
 from .embeddings import embed_texts
-
-logger = logging.getLogger(__name__)
-
 
 class SourceChunk(TypedDict):
     """An indexed chunk and the metadata needed to cite it."""
@@ -36,18 +33,9 @@ class SearchResult(SourceChunk):
     fusion_score: float
 
 
-_ISSUE_PATTERN = re.compile(r"(?:#|\bno\.?)\s*(\d+)\b", re.IGNORECASE)
-
-
-def _issue_from_text(*texts: str | None) -> int | None:
-    """Return an issue number written as "#58" or "No. 58" in any text."""
-    for text in texts:
-        if not text:
-            continue
-        match = _ISSUE_PATTERN.search(text)
-        if match:
-            return int(match.group(1))
-    return None
+def _title_words(title: str) -> str:
+    normalized = unicodedata.normalize("NFKC", title).casefold()
+    return " ".join(re.findall(r"[^\W_]+", normalized))
 
 
 def search(
@@ -77,25 +65,10 @@ def search(
     settings = Settings.from_environment()
     vector = embed_texts(OpenAI(), [query.strip()], settings.embedding_model)[0]
     if date_from is not None or date_to is not None or issue is not None or report_title:
-        results = _filtered_search(settings, query, vector, limit, date_from, date_to, issue, report_title, semantic_weight, keyword_weight)
-        if not results and report_title:
-            # The database matches titles as exact substrings, so a natural
-            # title can miss when the stored title adds separators such as "|".
-            # Treat the title as a hint: retry with an issue number when one is
-            # present, then without the title, before reporting no matches.
-            issue_hint = issue if issue is not None else _issue_from_text(
-                report_title, query
-            )
-            if issue_hint is not None:
-                logger.info(
-                    "Report title filter matched nothing; retrying with issue %s",
-                    issue_hint,
-                )
-                results = _filtered_search(settings, query, vector, limit, date_from, date_to, issue_hint, None, semantic_weight, keyword_weight)
-            if not results and issue_hint != issue:
-                logger.info("Report title filter matched nothing; retrying without it")
-                results = _filtered_search(settings, query, vector, limit, date_from, date_to, issue, None, semantic_weight, keyword_weight)
-        return results
+        return _filtered_search(
+            settings, query, vector, limit, date_from, date_to, issue, report_title,
+            semantic_weight, keyword_weight,
+        )
     return _search_unfiltered(settings, query.strip(), vector, limit, semantic_weight, keyword_weight)
 
 
@@ -138,13 +111,18 @@ def _filtered_search(settings, query, vector, limit, date_from, date_to, issue, 
     reports = rest_rows(settings.supabase_url, settings.supabase_secret_key, "report_landings",
                         select="id,title,landing_url,posted,originally_published")
     issue_pattern = re.compile(r"(?:#|\bNo\.?)\s*" + re.escape(str(issue)) + r"\b", re.I) if issue is not None else None
+    title_words = _title_words(report_title) if report_title else ""
+    if report_title and not title_words:
+        return []
     selected = {}
     for report in reports:
         published = _publication_date(report)
         if (date_from or date_to) and (not published or (date_from and published < date_from) or (date_to and published > date_to)):
             continue
-        if report_title and report_title.casefold() not in (report.get("title") or "").casefold():
-            continue
+        if title_words:
+            report_words = _title_words(report.get("title") or "")
+            if f" {title_words} " not in f" {report_words} ":
+                continue
         if issue_pattern and not issue_pattern.search(report.get("title") or ""):
             continue
         selected[report["id"]] = report
