@@ -43,13 +43,20 @@ def test_search_tool_requests_up_to_30_chunks(chat, monkeypatch):
 def test_zero_result_filtered_search_reports_corpus_coverage(chat, monkeypatch):
     from ochask.web.app import app
     from pydantic_ai.messages import ToolReturnPart
+    from ochask.config import Settings
 
     monkeypatch.setattr(chat, "search", lambda query, **kwargs: [])
-    monkeypatch.setattr(
-        chat.tools,
-        "_indexed_coverage",
-        lambda: {"publication_start": "2023-10-07", "publication_end": "2026-10-05"},
-    )
+    monkeypatch.setattr(Settings, "from_environment", lambda: Settings("https://example.test", "key", "model"))
+    reads = []
+
+    def read_rows(_url, _key, table, *, select, filters):
+        reads.append((table, select, filters))
+        return [
+            {"originally_published": "2023-10-07", "posted": "2023-10-08"},
+            {"originally_published": None, "posted": "2026-10-05T10:00:00+00:00"},
+        ]
+
+    monkeypatch.setattr(chat.tools, "rest_rows", read_rows)
     returns = []
 
     async def respond(messages, _info):
@@ -75,8 +82,14 @@ def test_zero_result_filtered_search_reports_corpus_coverage(chat, monkeypatch):
     assert returns
     payload = returns[-1]
     assert payload["results"] == []
-    assert payload["corpus_coverage"]["publication_end"] == "2026-10-05"
+    assert payload["corpus_coverage"] == {"publication_start": "2023-10-07", "publication_end": "2026-10-05"}
     assert "outside the indexed corpus" in payload["note"]
+    assert len(reads) == 1
+    table, select, filters = reads[0]
+    assert table == "report_landings"
+    assert "report_embeddings!inner()" in select
+    assert filters["report_embeddings.embedding_model"] == "eq.model"
+    assert filters["report_embeddings.chunk_id"] == filters["report_embeddings.embedding"] == "not.is.null"
 
 
 def test_agent_has_bearing_witness_mcp_toolset(chat):

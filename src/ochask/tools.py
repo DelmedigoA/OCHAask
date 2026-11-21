@@ -19,6 +19,9 @@ from pydantic_ai.toolsets.abstract import ToolsetTool
 from pydantic_ai.toolsets.wrapper import WrapperToolset
 
 from .bearing_witness_document import read_document_pages, search_document
+from .config import Settings
+from .corpus import _publication_date
+from .database import rest_rows
 from .geocoding import mapping
 from .project_resources import bearing_witness_faqs, project_metadata
 from .search import SearchResult, search
@@ -198,31 +201,23 @@ def search_reports(
     )
 
 
-def _publication_date(row: dict) -> date | None:
-    for field in ("originally_published", "posted"):
-        value = row.get(field)
-        if isinstance(value, str):
-            try:
-                return date.fromisoformat(value[:10])
-            except ValueError:
-                continue
-    return None
-
-
 def _indexed_coverage() -> dict[str, str] | None:
     """Return the indexed publication range, or None when it is unavailable."""
     try:
-        from .config import Settings
-        from .database import rest_rows
-
         settings = Settings.from_environment()
         rows = rest_rows(
             settings.supabase_url,
             settings.supabase_secret_key,
             "report_landings",
-            select="originally_published,posted",
+            select="originally_published,posted,report_embeddings!inner()",
+            filters={
+                "order": "id.asc",
+                "report_embeddings.embedding_model": f"eq.{settings.embedding_model}",
+                "report_embeddings.chunk_id": "not.is.null",
+                "report_embeddings.embedding": "not.is.null",
+            },
         )
-    except Exception as exc:
+    except (RuntimeError, ValueError) as exc:
         logger.info("Indexed corpus coverage unavailable: %s", type(exc).__name__)
         return None
     dates = [published for row in rows if (published := _publication_date(row))]
