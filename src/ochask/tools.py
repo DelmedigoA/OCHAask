@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 from datetime import date
 from typing import Callable
+from urllib.parse import urlsplit
 
 from dotenv import load_dotenv
 from pydantic_ai import RunContext
@@ -26,18 +28,36 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 SOURCE_NAMES = frozenset({"archive", "ocha"})
 OCHA_TOOL_NAME = "search_ocha_corpus"
-ARCHIVE_SEARCH_TOOLS = frozenset({"search_archive", "lookup_url"})
-OCHA_PROVENANCE_FIELDS = ("platform", "author", "url", "page_url")
+ARCHIVE_RECORD_TOOLS = frozenset({"search_archive", "lookup_url", "request_archiving"})
+_OCHA_NAME = re.compile(r"\b(?:UNOCHA|OCHA|(?:UN |United Nations )?Office for the Coordination of Humanitarian Affairs)\b", re.I)
+_OCHA_DOMAINS = ("ochaopt.org", "unocha.org", "ocha.un.org")
 
 
 def _is_ocha_provenance(item: object) -> bool:
     """Return True when an archive item is an OCHA document or archived copy."""
     if not isinstance(item, dict):
         return False
-    haystack = " ".join(
-        str(item.get(field, "")) for field in OCHA_PROVENANCE_FIELDS
-    ).lower()
-    return "ocha" in haystack or "ochaopt.org" in haystack
+    if any(_OCHA_NAME.search(str(item.get(field, ""))) for field in ("platform", "author")):
+        return True
+    for field in ("url", "page_url"):
+        try:
+            host = (urlsplit(str(item.get(field) or "")).hostname or "").lower().rstrip(".")
+        except ValueError:
+            continue
+        if any(host == domain or host.endswith(f".{domain}") for domain in _OCHA_DOMAINS):
+            return True
+    return False
+
+
+def has_ocha_archive_records(payload: object) -> bool:
+    if isinstance(payload, list):
+        return any(has_ocha_archive_records(item) for item in payload)
+    if isinstance(payload, dict):
+        return _is_ocha_provenance(payload) or any(
+            has_ocha_archive_records(payload.get(key))
+            for key in ("record", "cataloged", "unindexed", "hits")
+        )
+    return False
 
 
 def _filter_ocha_payload(payload):
@@ -48,21 +68,20 @@ def _filter_ocha_payload(payload):
     before the model sees the result.
     """
     if isinstance(payload, list):
-        return [item for item in payload if not _is_ocha_provenance(item)]
+        return [item for item in payload if not has_ocha_archive_records(item)]
     if not isinstance(payload, dict):
         return payload
-    if _is_ocha_provenance(payload):
+    if _is_ocha_provenance(payload) or _is_ocha_provenance(payload.get("record")):
         return {"error": "This archived item belongs to the disabled OCHA source."}
-    cataloged = payload.get("cataloged")
-    if isinstance(cataloged, dict) and isinstance(cataloged.get("hits"), list):
-        hits = cataloged["hits"]
-        filtered = [item for item in hits if not _is_ocha_provenance(item)]
-        return {**payload, "cataloged": {**cataloged, "hits": filtered}}
-    hits = payload.get("hits")
-    if isinstance(hits, list):
-        filtered = [item for item in hits if not _is_ocha_provenance(item)]
-        return {**payload, "hits": filtered}
-    return payload
+    result = dict(payload)
+    for key in ("cataloged", "unindexed"):
+        if isinstance(result.get(key), dict):
+            result[key] = _filter_ocha_payload(result[key])
+    if isinstance(result.get("hits"), list):
+        result["hits"] = _filter_ocha_payload(result["hits"])
+        # The upstream count includes disabled results, including on other pages.
+        result.pop("total", None)
+    return result
 
 
 def archive_mcp_endpoint() -> str:
@@ -140,7 +159,7 @@ class OptionalArchiveToolset(WrapperToolset[SearchContext]):
         result = await super().call_tool(name, tool_args, ctx, tool)
         deps = getattr(ctx, "deps", None)
         enabled = getattr(deps, "enabled_sources", None) if deps is not None else None
-        if enabled is not None and "ocha" not in enabled and name in ARCHIVE_SEARCH_TOOLS:
+        if enabled is not None and "ocha" not in enabled and name in ARCHIVE_RECORD_TOOLS:
             result = _filter_ocha_payload(result)
         return result
 
