@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import math
 import re
 from concurrent.futures import ThreadPoolExecutor
@@ -14,6 +15,8 @@ from openai import OpenAI
 from .config import Settings
 from .database import rest_rows, rpc
 from .embeddings import embed_texts
+
+logger = logging.getLogger(__name__)
 
 
 class SourceChunk(TypedDict):
@@ -31,6 +34,20 @@ class SearchResult(SourceChunk):
     """A source chunk ranked by reciprocal rank fusion."""
 
     fusion_score: float
+
+
+_ISSUE_PATTERN = re.compile(r"(?:#|\bno\.?)\s*(\d+)\b", re.IGNORECASE)
+
+
+def _issue_from_text(*texts: str | None) -> int | None:
+    """Return an issue number written as "#58" or "No. 58" in any text."""
+    for text in texts:
+        if not text:
+            continue
+        match = _ISSUE_PATTERN.search(text)
+        if match:
+            return int(match.group(1))
+    return None
 
 
 def search(
@@ -60,7 +77,25 @@ def search(
     settings = Settings.from_environment()
     vector = embed_texts(OpenAI(), [query.strip()], settings.embedding_model)[0]
     if date_from is not None or date_to is not None or issue is not None or report_title:
-        return _filtered_search(settings, query, vector, limit, date_from, date_to, issue, report_title, semantic_weight, keyword_weight)
+        results = _filtered_search(settings, query, vector, limit, date_from, date_to, issue, report_title, semantic_weight, keyword_weight)
+        if not results and report_title:
+            # The database matches titles as exact substrings, so a natural
+            # title can miss when the stored title adds separators such as "|".
+            # Treat the title as a hint: retry with an issue number when one is
+            # present, then without the title, before reporting no matches.
+            issue_hint = issue if issue is not None else _issue_from_text(
+                report_title, query
+            )
+            if issue_hint is not None:
+                logger.info(
+                    "Report title filter matched nothing; retrying with issue %s",
+                    issue_hint,
+                )
+                results = _filtered_search(settings, query, vector, limit, date_from, date_to, issue_hint, None, semantic_weight, keyword_weight)
+            if not results and issue_hint != issue:
+                logger.info("Report title filter matched nothing; retrying without it")
+                results = _filtered_search(settings, query, vector, limit, date_from, date_to, issue, None, semantic_weight, keyword_weight)
+        return results
     return _search_unfiltered(settings, query.strip(), vector, limit, semantic_weight, keyword_weight)
 
 
