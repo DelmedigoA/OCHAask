@@ -267,14 +267,14 @@ def register_tools(agent, *, report_searcher, archive_toolset_getter) -> None:
         """Search report chunks and return citation IDs, text and source pages.
 
         When the user specifies a publication date range or an issue number, pass
-        those filters. When a specific series or location is supplied, pass its exact title fragment in report_title.
+        those filters. When a specific series or location is supplied, pass its title fragment in report_title.
 
         Args:
             query: Evidence to find, including the report series or location if given.
             date_from: Inclusive earliest publication date (YYYY-MM-DD), if specified.
             date_to: Inclusive latest publication date (YYYY-MM-DD), if specified.
             issue: Issue number, for example 300 for #300, if specified.
-            report_title: Exact title fragment identifying the report series or location, if specified.
+            report_title: Title fragment identifying the report series or location, if specified.
         """
         results = report_searcher(
             query,

@@ -1,115 +1,63 @@
 from datetime import date
 
+import pytest
+
 from ochask import search as retrieval
 from ochask.config import Settings
 
-TITLE = "Gaza Humanitarian Response | Situation Report No. 58"
-RESULT = {
-    "chunk_id": "c1",
-    "report_id": "r1",
-    "title": TITLE,
-    "landing_url": "https://example.test/situation-report-no-58",
-    "pages": [1],
-    "content": "The January 2026 ration was two food parcels.",
-    "fusion_score": 0.5,
-}
 
-
-def install_fake_search(monkeypatch, *, known_titles):
+@pytest.fixture
+def indexed_reports(monkeypatch):
     settings = Settings("https://example.test", "key", "model")
-    calls = []
+    selected = []
+    reports = [
+        {"id": "gaza", "title": "Gaza Humanitarian Response | Situation Report No. 58", "posted": "2026-01-04"},
+        {"id": "other", "title": "Another Series — Situation Report No. 58", "posted": "2026-01-04"},
+        {"id": "earlier", "title": "Gaza Humanitarian Response | Situation Report No. 57", "posted": "2025-12-28"},
+    ]
+    for report in reports:
+        report["landing_url"] = f"https://example.test/{report['id']}"
 
-    def fake_filtered_search(
-        _settings,
-        _query,
-        _vector,
-        _limit,
-        date_from,
-        date_to,
-        issue,
-        report_title,
-        _semantic_weight,
-        _keyword_weight,
-    ):
-        calls.append({
-            "report_title": report_title,
-            "report_issue": issue,
-            "report_date_from": date_from,
-            "report_date_to": date_to,
-        })
-        if report_title is None:
-            return [dict(RESULT)] if known_titles else []
-        if not any(report_title.lower() in title.lower() for title in known_titles):
-            return []
-        return [dict(RESULT)]
+    def rows(_url, _key, table, *, select, filters=None):
+        if table == "report_landings":
+            return reports
+        ids = filters["report_id"].removeprefix("in.(").removesuffix(")").split(",")
+        selected.extend(ids)
+        return [
+            {"chunk_id": report_id, "report_id": report_id, "pages": [1], "content": "Food ration", "embedding": [0.5]}
+            for report_id in ids
+        ]
 
-    monkeypatch.setattr(retrieval, "_filtered_search", fake_filtered_search)
+    monkeypatch.setattr(retrieval, "rest_rows", rows)
     monkeypatch.setattr(retrieval, "OpenAI", lambda: None)
     monkeypatch.setattr(retrieval, "embed_texts", lambda *args: [[0.5]])
     monkeypatch.setattr(Settings, "from_environment", lambda: settings)
-    return calls
+    return selected
 
 
-def test_report_title_filter_falls_back_when_substring_misses(monkeypatch):
-    calls = install_fake_search(monkeypatch, known_titles=[TITLE])
-
+@pytest.mark.parametrize("title", [
+    "Gaza Humanitarian Response Situation Report No. 58",
+    "gaza humanitarian response — situation report no 58",
+    "Situation Report No. 58",
+])
+def test_report_title_tolerates_separators_and_keeps_date_and_issue(indexed_reports, title):
     hits = retrieval.search(
-        "Situation Report No. 58 January 2026 food ration",
-        date_from=date(2026, 1, 1),
-        issue=58,
-        report_title="Gaza Humanitarian Response Situation Report No. 58",
+        "January 2026 food ration",
+        date_from=date(2026, 1, 1), issue=58, report_title=title,
     )
-
-    assert [hit["chunk_id"] for hit in hits] == ["c1"]
-    assert [call["report_title"] for call in calls] == [
-        "Gaza Humanitarian Response Situation Report No. 58",
-        None,
-    ]
-    # The fallback keeps the date and issue filters.
-    assert calls[1]["report_date_from"] == date(2026, 1, 1)
-    assert calls[1]["report_issue"] == 58
+    expected = ["gaza", "other"] if title.startswith("Situation Report") else ["gaza"]
+    assert [hit["report_id"] for hit in hits] == expected
+    assert indexed_reports == expected
 
 
-def test_report_title_filter_does_not_retry_when_title_matches(monkeypatch):
-    calls = install_fake_search(monkeypatch, known_titles=[TITLE])
-
-    hits = retrieval.search(
-        "Situation Report No. 58 January 2026 food ration",
-        report_title="Situation Report No. 58",
-    )
-
-    assert [hit["chunk_id"] for hit in hits] == ["c1"]
-    assert [call["report_title"] for call in calls] == ["Situation Report No. 58"]
+@pytest.mark.parametrize("title", ["Absent Series Situation Report No. 58", "Situation Report No. 5", "|"])
+def test_missing_report_title_does_not_fetch_a_different_report(indexed_reports, title):
+    assert retrieval.search("January 2026 food ration", report_title=title) == []
+    assert indexed_reports == []
 
 
-def test_report_title_filter_uses_issue_hint_from_query_when_title_misses(monkeypatch):
-    calls = install_fake_search(monkeypatch, known_titles=[TITLE])
-
-    hits = retrieval.search(
-        "Situation Report No. 58 January 2026 food ration",
-        report_title="Gaza Humanitarian Response Situation Report",
-    )
-
-    assert [hit["chunk_id"] for hit in hits] == ["c1"]
-    assert [call["report_title"] for call in calls] == [
-        "Gaza Humanitarian Response Situation Report",
-        None,
-    ]
-    assert [call["report_issue"] for call in calls] == [None, 58]
-
-
-def test_report_title_fallback_returns_empty_when_corpus_has_no_match(monkeypatch):
-    calls = install_fake_search(monkeypatch, known_titles=[])
-
-    hits = retrieval.search(
-        "Situation Report No. 99",
-        report_title="Gaza Humanitarian Response Situation Report No. 99",
-    )
-
-    assert hits == []
-    assert [call["report_title"] for call in calls] == [
-        "Gaza Humanitarian Response Situation Report No. 99",
-        None,
-        None,
-    ]
-    assert [call["report_issue"] for call in calls] == [None, 99, None]
+def test_normalized_title_does_not_override_an_explicit_issue_or_date(indexed_reports):
+    title = "Gaza Humanitarian Response Situation Report"
+    assert retrieval.search("food ration", report_title=title, issue=99) == []
+    assert retrieval.search("food ration", report_title=title, date_from=date(2026, 2, 1)) == []
+    assert indexed_reports == []
