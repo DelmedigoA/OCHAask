@@ -14,3 +14,7 @@ figures differ.
 Keep the direction of bounds. If a total is T and at least N are in one
 category, the remaining category is at most T - N. If the exact number is not
 stated, say it is unknown.
+
+When a search returns no indexed report and reports the corpus coverage, and
+the requested period falls after that range, say the period is outside the
+indexed corpus and give the latest indexed publication date.

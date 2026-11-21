@@ -179,6 +179,42 @@ def search_reports(
     )
 
 
+def _publication_date(row: dict) -> date | None:
+    for field in ("originally_published", "posted"):
+        value = row.get(field)
+        if isinstance(value, str):
+            try:
+                return date.fromisoformat(value[:10])
+            except ValueError:
+                continue
+    return None
+
+
+def _indexed_coverage() -> dict[str, str] | None:
+    """Return the indexed publication range, or None when it is unavailable."""
+    try:
+        from .config import Settings
+        from .database import rest_rows
+
+        settings = Settings.from_environment()
+        rows = rest_rows(
+            settings.supabase_url,
+            settings.supabase_secret_key,
+            "report_landings",
+            select="originally_published,posted",
+        )
+    except Exception as exc:
+        logger.info("Indexed corpus coverage unavailable: %s", type(exc).__name__)
+        return None
+    dates = [published for row in rows if (published := _publication_date(row))]
+    if not dates:
+        return None
+    return {
+        "publication_start": min(dates).isoformat(),
+        "publication_end": max(dates).isoformat(),
+    }
+
+
 def register_tools(agent, *, report_searcher, archive_toolset_getter) -> None:
     """Register research and mapping tools for the chat agent."""
     agent.tool_plain(mapping)
@@ -208,7 +244,7 @@ def register_tools(agent, *, report_searcher, archive_toolset_getter) -> None:
         ctx: RunContext[SearchContext], query: str, date_from: date | None = None,
         date_to: date | None = None, issue: int | None = None,
         report_title: str | None = None,
-    ) -> list[dict]:
+    ) -> list[dict] | dict:
         """Search report chunks and return citation IDs, text and source pages.
 
         When the user specifies a publication date range or an issue number, pass
@@ -228,6 +264,21 @@ def register_tools(agent, *, report_searcher, archive_toolset_getter) -> None:
             issue=issue,
             report_title=report_title,
         )
+        if not results and (date_from is not None or date_to is not None):
+            coverage = _indexed_coverage()
+            if coverage:
+                return {
+                    "results": [],
+                    "corpus_coverage": coverage,
+                    "note": (
+                        "No indexed report matched these filters. The indexed corpus "
+                        f"covers publications from {coverage['publication_start']} to "
+                        f"{coverage['publication_end']}. If the requested period falls "
+                        "after that range, tell the user the period is outside the "
+                        "indexed corpus and give the latest indexed publication date. "
+                        "Do not estimate a figure."
+                    ),
+                }
         labelled = []
         for result in results:
             source_id = f"S{len(ctx.deps.sources) + 1}"

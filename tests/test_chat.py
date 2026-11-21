@@ -40,6 +40,45 @@ def test_search_tool_requests_up_to_30_chunks(chat, monkeypatch):
     assert calls == [("water", 30)]
 
 
+def test_zero_result_filtered_search_reports_corpus_coverage(chat, monkeypatch):
+    from ochask.web.app import app
+    from pydantic_ai.messages import ToolReturnPart
+
+    monkeypatch.setattr(chat, "search", lambda query, **kwargs: [])
+    monkeypatch.setattr(
+        chat.tools,
+        "_indexed_coverage",
+        lambda: {"publication_start": "2023-10-07", "publication_end": "2026-10-05"},
+    )
+    returns = []
+
+    async def respond(messages, _info):
+        results = [part.content for message in messages for part in message.parts
+                   if isinstance(part, ToolReturnPart)]
+        if results:
+            returns.extend(results)
+            yield "Outside the corpus."
+        else:
+            yield {0: DeltaToolCall(
+                name="search_ocha_corpus",
+                json_args='{"query":"trucks","date_from":"2026-11-12","date_to":"2026-11-25"}',
+            )}
+
+    with chat.agent.override(model=StreamingModel(stream_function=respond)):
+        with TestClient(app, base_url="http://localhost") as client:
+            stream_events(post_run(
+                client,
+                [{"id": "question", "role": "user", "content": "Trucks in November 2026?"}],
+                {"sources": {"archive": False, "ocha": True}},
+            ))
+
+    assert returns
+    payload = returns[-1]
+    assert payload["results"] == []
+    assert payload["corpus_coverage"]["publication_end"] == "2026-10-05"
+    assert "outside the indexed corpus" in payload["note"]
+
+
 def test_agent_has_bearing_witness_mcp_toolset(chat):
     from pydantic_ai.mcp import MCPToolset
 
