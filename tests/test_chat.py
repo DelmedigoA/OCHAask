@@ -40,6 +40,45 @@ def test_search_tool_requests_up_to_30_chunks(chat, monkeypatch):
     assert calls == [("water", 30)]
 
 
+def test_zero_result_filtered_search_reports_corpus_coverage(chat, monkeypatch):
+    from ochask.web.app import app
+    from pydantic_ai.messages import ToolReturnPart
+
+    monkeypatch.setattr(chat, "search", lambda query, **kwargs: [])
+    monkeypatch.setattr(
+        chat.tools,
+        "_indexed_coverage",
+        lambda: {"publication_start": "2023-10-07", "publication_end": "2026-10-05"},
+    )
+    returns = []
+
+    async def respond(messages, _info):
+        results = [part.content for message in messages for part in message.parts
+                   if isinstance(part, ToolReturnPart)]
+        if results:
+            returns.extend(results)
+            yield "Outside the corpus."
+        else:
+            yield {0: DeltaToolCall(
+                name="search_ocha_corpus",
+                json_args='{"query":"trucks","date_from":"2026-11-12","date_to":"2026-11-25"}',
+            )}
+
+    with chat.agent.override(model=StreamingModel(stream_function=respond)):
+        with TestClient(app, base_url="http://localhost") as client:
+            stream_events(post_run(
+                client,
+                [{"id": "question", "role": "user", "content": "Trucks in November 2026?"}],
+                {"sources": {"archive": False, "ocha": True}},
+            ))
+
+    assert returns
+    payload = returns[-1]
+    assert payload["results"] == []
+    assert payload["corpus_coverage"]["publication_end"] == "2026-10-05"
+    assert "outside the indexed corpus" in payload["note"]
+
+
 def test_agent_has_bearing_witness_mcp_toolset(chat):
     from pydantic_ai.mcp import MCPToolset
 
@@ -204,6 +243,97 @@ def test_source_toggles_control_prompt_and_toolset(chat, monkeypatch, archive, o
     assert ("Use the Bearing Witness archive tools" in info.instructions) == archive
     assert ("currently the only platform" in info.instructions) == archive
     assert ("only a small selection of reports" in info.instructions) == ocha
+
+
+@pytest.mark.parametrize(("ocha", "expected_ids"), [(False, [2]), (True, [1, 2])])
+def test_archive_search_filters_ocha_items_only_when_ocha_disabled(
+    chat, monkeypatch, ocha, expected_ids,
+):
+    from ochask.web.app import app
+    from pydantic_ai.messages import ToolReturnPart
+
+    results = []
+
+    def search_archive(query: str, limit: int = 10) -> dict:
+        """Search the test archive."""
+        return {"cataloged": {"total": 2, "hits": [
+            {
+                "item_id": 1,
+                "platform": "OCHA (UN office for the Coordination of Humanitarian Affairs)",
+                "url": "https://www.ochaopt.org/content/hostilities-gaza-strip-and-israel-flash-update-15",
+            },
+            {
+                "item_id": 2,
+                "platform": "Human Rights Watch",
+                "url": "https://www.hrw.org/news/2025/08/01/gaza-israeli-killings",
+            },
+        ]}}
+
+    fake_archive = chat.OptionalArchiveToolset(FunctionToolset([search_archive]))
+    monkeypatch.setattr(chat, "archive_toolset", fake_archive)
+
+    async def respond(messages, _info):
+        returns = [
+            part.content
+            for message in messages for part in message.parts
+            if isinstance(part, ToolReturnPart)
+        ]
+        if returns:
+            results.append(returns[-1])
+            yield "Answer"
+        else:
+            yield {0: DeltaToolCall(name="search_archive", json_args='{"query":"trucks","limit":10}')}
+
+    with chat.agent.override(model=StreamingModel(stream_function=respond)):
+        with TestClient(app, base_url="http://localhost") as client:
+            stream_events(post_run(
+                client,
+                [{"id": "question", "role": "user", "content": "How many trucks?"}],
+                {"sources": {"archive": True, "ocha": ocha}},
+            ))
+
+    assert results
+    hits = results[0]["cataloged"]["hits"]
+    assert [hit["item_id"] for hit in hits] == expected_ids
+
+
+@pytest.mark.parametrize(
+    ("archive", "ocha", "expected"),
+    [
+        (False, True, "Archive is currently disabled"),
+        (True, False, "OCHA report corpus is currently disabled"),
+    ],
+)
+def test_disabled_source_instructions_name_disabled_source(
+    chat, monkeypatch, archive, ocha, expected,
+):
+    from ochask.web.app import app
+
+    invocations = []
+
+    def search_archive(query: str) -> list:
+        """Search the test archive."""
+        return []
+
+    fake_archive = chat.OptionalArchiveToolset(FunctionToolset([search_archive]))
+    monkeypatch.setattr(chat, "archive_toolset", fake_archive)
+
+    async def respond(messages, info):
+        invocations.append(info)
+        yield "Test answer"
+
+    with chat.agent.override(model=StreamingModel(stream_function=respond)):
+        with TestClient(app, base_url="http://localhost") as client:
+            stream_events(post_run(
+                client,
+                [{"id": "question", "role": "user", "content": "What happened?"}],
+                {"sources": {"archive": archive, "ocha": ocha}},
+            ))
+
+    assert len(invocations) == 1
+    instructions = invocations[0].instructions
+    assert expected in instructions
+    assert "ask the user to enable it" in instructions
 
 
 def test_mapping_streams_tool_result_without_research_source_dependency(chat, monkeypatch):
