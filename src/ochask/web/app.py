@@ -343,7 +343,7 @@ async def agui_chat(request: Request) -> Response:
         conversation_id=thread_id,
         usage_limits=UsageLimits(
             request_limit=5,
-            tool_calls_limit=15,
+            tool_calls_limit=50,
             input_tokens_limit=128_000,
             per_request_input_tokens_limit=128_000,
             output_tokens_limit=output_budget,
