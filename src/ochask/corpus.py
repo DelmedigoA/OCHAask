@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
 from .config import Settings
-from .database import rest_rows
+from .database import request_id_var, rest_rows, rpc
 
 if TYPE_CHECKING:
     from .search import SearchResult
@@ -54,18 +54,15 @@ def _all_months(
 
 def corpus_overview(settings: Settings) -> dict[str, Any]:
     """Aggregate indexed chunks without treating chunk tokens as unique document tokens."""
+    request_id = request_id_var.get()
     with ThreadPoolExecutor(max_workers=3) as executor:
         chunks_future = executor.submit(
-            rest_rows,
+            rpc,
             settings.supabase_url,
             settings.supabase_secret_key,
-            "report_embeddings",
-            select="report_id,token_count",
-            filters={
-                "embedding_model": f"eq.{settings.embedding_model}",
-                "chunk_id": "not.is.null",
-            },
-            count_mode="planned",
+            "summarize_report_embeddings",
+            {"model_name": settings.embedding_model},
+            request_id=request_id,
         )
         reports_future = executor.submit(
             rest_rows,
@@ -73,6 +70,7 @@ def corpus_overview(settings: Settings) -> dict[str, Any]:
             settings.supabase_secret_key,
             "report_landings",
             select="id,title,posted,originally_published,landing_url,origin_url",
+            request_id=request_id,
         )
         attachments_future = executor.submit(
             rest_rows,
@@ -80,24 +78,29 @@ def corpus_overview(settings: Settings) -> dict[str, Any]:
             settings.supabase_secret_key,
             "report_attachments",
             select="report_id,filename,url,file_type,language",
+            request_id=request_id,
         )
         chunks = chunks_future.result()
         report_rows = reports_future.result()
         attachments = attachments_future.result()
 
-    per_report: dict[str, dict[str, Any]] = defaultdict(
-        lambda: {"chunk_tokens": 0, "token_count_complete": True}
-    )
-    for chunk in chunks:
-        report_id = chunk.get("report_id")
-        if not isinstance(report_id, str):
-            continue
-        summary = per_report[report_id]
-        token_count = chunk.get("token_count")
-        if isinstance(token_count, int) and token_count >= 0:
-            summary["chunk_tokens"] += token_count
-        else:
-            summary["token_count_complete"] = False
+    per_report: dict[str, dict[str, Any]] = {}
+    for summary in chunks:
+        report_id = summary.get("report_id")
+        chunk_tokens = summary.get("chunk_token_count")
+        token_count_complete = summary.get("token_count_complete")
+        if (
+            not isinstance(report_id, str)
+            or isinstance(chunk_tokens, bool)
+            or not isinstance(chunk_tokens, int)
+            or chunk_tokens < 0
+            or not isinstance(token_count_complete, bool)
+        ):
+            raise RuntimeError("Supabase returned an invalid report embedding summary")
+        per_report[report_id] = {
+            "chunk_tokens": chunk_tokens,
+            "token_count_complete": token_count_complete,
+        }
     report_ids = set(per_report)
     if not report_ids:
         return {

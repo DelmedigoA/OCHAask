@@ -21,7 +21,7 @@ from starlette.staticfiles import StaticFiles
 
 from ochask.config import Settings
 from ochask.corpus import corpus_overview, search_evidence
-from ochask.database import count_indexed_reports
+from ochask.database import count_indexed_reports, request_id_var
 
 STATIC_DIR = Path(__file__).with_name("static")
 WORKSPACE_DIR = STATIC_DIR / "workspace"
@@ -30,11 +30,14 @@ MAX_CHAT_INPUT_CHARS = 6_000
 MAX_SEARCH_QUERY_CHARS = 4_000
 
 
-def log_request(scope, status: int, started: float, stream_completed: bool) -> None:
+def log_request(
+    scope, status: int, started: float, stream_completed: bool, request_id: str | None = None
+) -> None:
     print(
         json.dumps(
             {
                 "endpoint": scope.get("path", ""),
+                "request_id": request_id or scope.get("ochask.request_id"),
                 "status": status,
                 "latency_ms": round((perf_counter() - started) * 1000),
                 "stream_completed": stream_completed,
@@ -58,21 +61,27 @@ class AccessLogMiddleware:
         started = perf_counter()
         status = 500
         stream_completed = False
+        request_id = uuid4().hex
+        scope["ochask.request_id"] = request_id
+        request_id_token = request_id_var.set(request_id)
 
         async def logged_send(message):
             nonlocal status, stream_completed
             if message["type"] == "http.response.start":
                 status = message["status"]
-            elif message["type"] == "http.response.body" and not message.get("more_body", False):
-                stream_completed = True
+                headers = list(message.get("headers", []))
+                if not any(name.lower() == b"x-request-id" for name, _ in headers):
+                    headers.append((b"x-request-id", request_id.encode("ascii")))
+                message = {**message, "headers": headers}
             await send(message)
+            if message["type"] == "http.response.body" and not message.get("more_body", False):
+                stream_completed = True
 
         try:
             await self.app(scope, receive, logged_send)
-        except Exception:
-            log_request(scope, status, started, stream_completed)
-            raise
-        log_request(scope, status, started, stream_completed)
+        finally:
+            request_id_var.reset(request_id_token)
+            log_request(scope, status, started, stream_completed, request_id)
 
 
 async def index(request: Request) -> Response:

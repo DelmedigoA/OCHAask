@@ -2,25 +2,109 @@
 
 from __future__ import annotations
 
+import logging
+import re
 from concurrent.futures import ThreadPoolExecutor
+from contextvars import ContextVar
 from typing import Any
 
 import requests
 
+logger = logging.getLogger(__name__)
+request_id_var: ContextVar[str | None] = ContextVar("ochask_request_id", default=None)
 
-def rpc(url: str, key: str, function: str, payload: dict[str, Any]) -> Any:
-    """Call a Supabase RPC without exposing credentials or error response bodies."""
-    response = requests.post(
-        f"{url.rstrip('/')}/rest/v1/rpc/{function}",
-        headers={
-            "apikey": key,
-            "Content-Type": "application/json",
-        },
-        json=payload,
-        timeout=120,
+
+class SupabaseRequestError(RuntimeError):
+    """A Supabase request failure with safe, machine-readable details."""
+
+    def __init__(
+        self,
+        operation: str,
+        status_code: int | None,
+        error_code: str | None,
+        error_type: str | None = None,
+    ):
+        self.operation = operation
+        self.status_code = status_code
+        self.error_code = error_code
+        self.error_type = error_type
+        details = f"HTTP {status_code}" if status_code is not None else error_type or "network error"
+        if error_code:
+            details += f", code {error_code}"
+        super().__init__(f"Supabase {operation} failed ({details})")
+
+
+class SupabaseRPCError(SupabaseRequestError):
+    """A failed Supabase RPC call."""
+
+
+class SupabaseRestError(SupabaseRequestError):
+    """A failed Supabase REST table request."""
+
+
+def _safe_error_code(response: requests.Response) -> str | None:
+    try:
+        body = response.json()
+    except ValueError:
+        return None
+    code = body.get("code") if isinstance(body, dict) else None
+    if isinstance(code, str) and re.fullmatch(r"[A-Za-z0-9_-]{1,32}", code):
+        return code
+    return None
+
+
+def _log_request_failure(
+    operation: str,
+    *,
+    status_code: int | None = None,
+    error_code: str | None = None,
+    error_type: str | None = None,
+    request_id: str | None = None,
+) -> None:
+    logger.warning(
+        "Supabase request failed operation=%s status=%s error_code=%s error_type=%s request_id=%s",
+        operation,
+        status_code if status_code is not None else "unavailable",
+        error_code or "unavailable",
+        error_type or "unavailable",
+        request_id or request_id_var.get() or "unavailable",
     )
+
+
+def rpc(
+    url: str,
+    key: str,
+    function: str,
+    payload: dict[str, Any],
+    *,
+    timeout: float = 120,
+    request_id: str | None = None,
+) -> Any:
+    """Call a Supabase RPC without exposing credentials or error response bodies."""
+    try:
+        response = requests.post(
+            f"{url.rstrip('/')}/rest/v1/rpc/{function}",
+            headers={
+                "apikey": key,
+                "Content-Type": "application/json",
+            },
+            json=payload,
+            timeout=timeout,
+        )
+    except requests.RequestException as exc:
+        _log_request_failure(
+            function, error_type=type(exc).__name__, request_id=request_id
+        )
+        raise SupabaseRPCError(function, None, None, type(exc).__name__) from None
     if not response.ok:
-        raise RuntimeError(f"Supabase {function} failed (HTTP {response.status_code})")
+        code = _safe_error_code(response)
+        _log_request_failure(
+            function,
+            status_code=response.status_code,
+            error_code=code,
+            request_id=request_id,
+        )
+        raise SupabaseRPCError(function, response.status_code, code)
     return response.json() if response.content else None
 
 
@@ -109,6 +193,7 @@ def rest_rows(
     filters: dict[str, str] | None = None,
     page_size: int = 1000,
     count_mode: str = "exact",
+    request_id: str | None = None,
 ) -> list[dict[str, Any]]:
     """Read all rows from a known PostgREST table, paging past its row limit."""
     if not 1 <= page_size <= 1000:
@@ -139,9 +224,19 @@ def rest_rows(
                 timeout=60,
             )
         except requests.RequestException as exc:
-            raise RuntimeError(f"Supabase {table} request failed") from exc
+            _log_request_failure(
+                table, error_type=type(exc).__name__, request_id=request_id
+            )
+            raise SupabaseRestError(table, None, None, type(exc).__name__) from None
         if not response.ok:
-            raise RuntimeError(f"Supabase {table} request failed (HTTP {response.status_code})")
+            code = _safe_error_code(response)
+            _log_request_failure(
+                table,
+                status_code=response.status_code,
+                error_code=code,
+                request_id=request_id,
+            )
+            raise SupabaseRestError(table, response.status_code, code)
         try:
             page = response.json()
         except ValueError as exc:

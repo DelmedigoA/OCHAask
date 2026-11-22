@@ -26,11 +26,6 @@ def test_monthly_series_includes_every_month_across_the_full_date_span():
 
 def test_corpus_aggregates_chunk_tokens_pages_and_publication_months(monkeypatch):
     rows = {
-        "report_embeddings": [
-            {"report_id": REPORT_A, "token_count": 5},
-            {"report_id": REPORT_A, "token_count": 7},
-            {"report_id": REPORT_B, "token_count": 4},
-        ],
         "report_landings": [
             {
                 "id": REPORT_A,
@@ -66,13 +61,35 @@ def test_corpus_aggregates_chunk_tokens_pages_and_publication_months(monkeypatch
             },
         ],
     }
+    summaries = [
+        {
+            "report_id": REPORT_A,
+            "chunk_token_count": 12,
+            "token_count_complete": True,
+        },
+        {
+            "report_id": REPORT_B,
+            "chunk_token_count": 4,
+            "token_count_complete": False,
+        },
+    ]
+    rpc_calls = []
 
     monkeypatch.setattr("ochask.corpus.rest_rows", lambda _url, _key, table, **_kwargs: rows[table])
+    monkeypatch.setattr(
+        "ochask.corpus.rpc",
+        lambda _url, _key, function, payload, **_kwargs: (
+            rpc_calls.append((function, payload)) or summaries
+        ),
+    )
     data = corpus_overview(SETTINGS)
 
+    assert rpc_calls == [
+        ("summarize_report_embeddings", {"model_name": "embedding-model"})
+    ]
     assert data["reports_count"] == 2
     assert data["chunk_token_count"] == 16
-    assert data["chunk_token_count_complete"] is True
+    assert data["chunk_token_count_complete"] is False
     assert data["date_start"] == "2024-01-31"
     assert data["date_end"] == "2024-02-10"
     assert {item["month"]: item["reports"] for item in data["monthly"] if item["reports"]} == {
@@ -80,6 +97,8 @@ def test_corpus_aggregates_chunk_tokens_pages_and_publication_months(monkeypatch
         "2024-02": 1,
     }
     reports = {item["id"]: item for item in data["reports"]}
+    assert reports[REPORT_A]["token_count_complete"] is True
+    assert reports[REPORT_B]["token_count_complete"] is False
     assert "pages_count" not in reports[REPORT_A]
     assert reports[REPORT_A]["source_url"] == "https://files.example/a-en.pdf"
     assert reports[REPORT_B]["source_url"] == "https://ocha.example/b"

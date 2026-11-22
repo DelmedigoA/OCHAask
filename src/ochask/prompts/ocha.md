@@ -20,3 +20,7 @@ is unknown.
 When a search returns no indexed report and reports the corpus coverage, and
 the requested period falls after that range, say the period is outside the
 indexed corpus and give the latest indexed publication date.
+
+If `search_ocha_corpus` reports that the search is unavailable, do not treat
+that as a search with no matches. Disclose that OCHA search could not be
+completed, and use only evidence returned by other enabled sources.

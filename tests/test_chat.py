@@ -40,6 +40,53 @@ def test_search_tool_requests_up_to_30_chunks(chat, monkeypatch):
     assert calls == [("water", 30)]
 
 
+@pytest.mark.parametrize("failure_kind", ["rpc", "rest"])
+def test_ocha_supabase_failure_is_distinct_from_empty_results_and_keeps_other_results(
+    chat, monkeypatch, failure_kind
+):
+    from ochask.database import SupabaseRPCError, SupabaseRestError
+    from ochask.web.app import app
+    from pydantic_ai.messages import ToolReturnPart
+
+    def fake_search(query, **_kwargs):
+        if query == "failed search":
+            error = SupabaseRPCError if failure_kind == "rpc" else SupabaseRestError
+            operation = "hybrid_search_report_chunks" if failure_kind == "rpc" else "report_embeddings"
+            raise error(operation, 500, "57014")
+        return [{"content": "Evidence from the successful search"}]
+
+    monkeypatch.setattr(chat, "search", fake_search)
+
+    async def respond(messages, _info):
+        returned = [
+            part.content
+            for message in messages
+            for part in message.parts
+            if isinstance(part, ToolReturnPart)
+        ]
+        if returned:
+            assert len(returned) == 2
+            assert "temporarily unavailable" in returned[0]["error"]
+            assert "no matches" in returned[0]["error"]
+            assert returned[1][0]["content"] == "Evidence from the successful search"
+            yield "OCHA search was unavailable for one query; another search returned evidence."
+        else:
+            yield {
+                0: DeltaToolCall(name="search_ocha_corpus", json_args='{"query":"failed search"}'),
+                1: DeltaToolCall(name="search_ocha_corpus", json_args='{"query":"healthy search"}'),
+            }
+
+    with chat.agent.override(model=StreamingModel(stream_function=respond)):
+        with TestClient(app, base_url="http://localhost") as client:
+            events = stream_events(post_run(
+                client,
+                [{"id": "question", "role": "user", "content": "Tell me about sports in Gaza"}],
+                {"sources": {"archive": False, "ocha": True}},
+            ))
+
+    assert sum(event["type"] == "TOOL_CALL_RESULT" for event in events) == 2
+
+
 def test_zero_result_filtered_search_reports_corpus_coverage(chat, monkeypatch):
     from ochask.web.app import app
     from pydantic_ai.messages import ToolReturnPart

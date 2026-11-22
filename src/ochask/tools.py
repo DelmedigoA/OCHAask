@@ -21,7 +21,7 @@ from pydantic_ai.toolsets.wrapper import WrapperToolset
 from .bearing_witness_document import read_document_pages, search_document
 from .config import Settings
 from .corpus import _publication_date
-from .database import rest_rows
+from .database import SupabaseRequestError, rest_rows
 from .geocoding import mapping
 from .project_resources import bearing_witness_faqs, project_metadata
 from .search import SearchResult, search
@@ -271,13 +271,23 @@ def register_tools(agent, *, report_searcher, archive_toolset_getter) -> None:
             issue: Issue number, for example 300 for #300, if specified.
             report_title: Title fragment identifying the report series or location, if specified.
         """
-        results = report_searcher(
-            query,
-            date_from=date_from,
-            date_to=date_to,
-            issue=issue,
-            report_title=report_title,
-        )
+        try:
+            results = report_searcher(
+                query,
+                date_from=date_from,
+                date_to=date_to,
+                issue=issue,
+                report_title=report_title,
+            )
+        except SupabaseRequestError as exc:
+            logger.warning("OCHA report search unavailable: %s", exc)
+            return {
+                "error": (
+                    "OCHA search is temporarily unavailable. Do not treat this as "
+                    "a search with no matches. Disclose the OCHA search gap and "
+                    "use evidence only from other enabled sources."
+                )
+            }
         if not results and (date_from is not None or date_to is not None):
             coverage = _indexed_coverage()
             if coverage:
